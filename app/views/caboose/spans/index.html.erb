@@ -114,9 +114,17 @@
       cmd = props["db.statement"]&.to_s
       { primary: cmd.presence || span[:name], secondary: nil }
     when "exceptions"
-      exc_type = span[:exception_name] || "exception"
+      exc_type = span[:exception_name]
       exc_message = span[:exception_message]
-      primary = exc_message.present? ? "#{exc_type}: #{exc_message}" : exc_type
+      primary = if exc_type.present? && exc_message.present?
+        "#{exc_type}: #{exc_message}"
+      elsif exc_message.present?
+        exc_message
+      elsif exc_type.present?
+        exc_type
+      else
+        span[:name]
+      end
       # Get first line of backtrace that's from app code (not gems/framework)
       stacktrace = span[:exception_stacktrace].to_s
       first_app_line = stacktrace.split("\n").find { |line| line.include?("/app/") } || stacktrace.split("\n").first
