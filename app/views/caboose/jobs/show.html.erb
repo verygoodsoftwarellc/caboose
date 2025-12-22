@@ -9,7 +9,7 @@
     display: inline-block;
   }
 
-  .action-name {
+  .job-name {
     font-weight: 600;
     color: var(--text-primary);
   }
@@ -341,7 +341,7 @@
     display: none !important;
   }
 
-  .copy-ai-btn {
+  .collapse-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -356,16 +356,10 @@
     transition: all 0.15s ease;
   }
 
-  .copy-ai-btn:hover {
+  .collapse-btn:hover {
     background: var(--bg-hover);
     color: var(--text-primary);
     border-color: var(--text-muted);
-  }
-
-  .copy-ai-btn.copied {
-    background: #22c55e;
-    color: white;
-    border-color: #22c55e;
   }
 </style>
 
@@ -395,16 +389,17 @@
 
   # Get root span properties
   root_props = @root_span ? @root_span[:properties] : {}
-  http_method = root_props["http.method"]
-  http_status = root_props["http.status_code"]
-  http_target = root_props["http.target"]
-  controller = root_props["code.namespace"]
-  action = root_props["code.function"]
+  job_class = root_props["code.namespace"]
+  queue_name = root_props["messaging.destination"]
+  job_id = root_props["messaging.message.id"] || root_props["messaging.message_id"]
 
   # Calculate total duration from root span
   total_duration_ms = @root_span ? @root_span[:duration_ms] : 1
   root_start = @root_span ? @root_span[:start_timestamp] : 0
   started_at = @root_span ? Time.at(@root_span[:start_timestamp] / 1_000_000_000.0) : nil
+
+  # Extract job name from span name (e.g., "MyJob process" -> "MyJob")
+  job_display_name = job_class || @job[:name].to_s.sub(/ (process|publish)$/, '')
 
   # Count span categories
   span_counts = @child_spans.each_with_object(Hash.new(0)) do |span, counts|
@@ -416,15 +411,8 @@
   <div class="detail-header">
     <div class="detail-header-left">
       <div class="detail-title">
-        <span class="badge badge-<%= http_method.to_s.downcase %>"><%= http_method || "GET" %></span>
-        <% status_class = case http_status.to_s
-           when /^2/ then "success"
-           when /^[45]/ then "error"
-           when /^3/ then "warning"
-           else "warning"
-           end %>
-        <span class="badge badge-status badge-<%= status_class %>"><%= http_status %></span>
-        <h1><%= @request[:name] %></h1>
+        <span class="badge badge-job">Job</span>
+        <h1><%= job_display_name %></h1>
       </div>
       <div class="detail-meta">
         <div class="meta-item">
@@ -435,10 +423,16 @@
           <span class="meta-label">Time</span>
           <span class="meta-value"><%= started_at&.strftime("%b %d, %Y %H:%M:%S") %></span>
         </div>
-        <% if controller && action %>
+        <% if queue_name %>
           <div class="meta-item">
-            <span class="meta-label">Controller</span>
-            <span class="meta-value"><%= controller %>#<%= action %></span>
+            <span class="meta-label">Queue</span>
+            <span class="meta-value"><%= queue_name %></span>
+          </div>
+        <% end %>
+        <% if job_id %>
+          <div class="meta-item">
+            <span class="meta-label">Job ID</span>
+            <span class="meta-value mono"><%= job_id %></span>
           </div>
         <% end %>
       </div>
@@ -478,7 +472,7 @@
             <circle cx="12" cy="12" r="10"></circle>
             <polyline points="12 6 12 12 16 14"></polyline>
           </svg>
-          <p>No timeline events recorded for this request.</p>
+          <p>No timeline events recorded for this job.</p>
         </div>
       <% else %>
         <div class="legend">
@@ -491,8 +485,8 @@
           <% if span_counts["job"] > 0 %><div class="legend-item clickable" data-filter="job" onclick="filterSpans('job')"><div class="legend-color job"></div> Job (<%= span_counts["job"] %>)</div><% end %>
           <% if span_counts["controller"] > 0 %><div class="legend-item clickable" data-filter="controller" onclick="filterSpans('controller')"><div class="legend-color controller"></div> Controller (<%= span_counts["controller"] %>)</div><% end %>
           <% if span_counts["other"] > 0 %><div class="legend-item clickable" data-filter="other" onclick="filterSpans('other')"><div class="legend-color other"></div> Other (<%= span_counts["other"] %>)</div><% end %>
-          <div style="margin-left: auto; display: flex; gap: 8px;">
-            <button type="button" onclick="collapseAll()" class="copy-ai-btn">
+          <div style="margin-left: auto;">
+            <button type="button" onclick="collapseAll()" class="collapse-btn">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="4 14 10 14 10 20"></polyline>
                 <polyline points="20 10 14 10 14 4"></polyline>
@@ -500,13 +494,6 @@
                 <line x1="3" y1="21" x2="10" y2="14"></line>
               </svg>
               Collapse All
-            </button>
-            <button type="button" onclick="copyForAI()" class="copy-ai-btn" id="copy-ai-btn">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-              Copy for AI
             </button>
           </div>
         </div>
@@ -577,130 +564,6 @@
 </div>
 
 <script>
-  // Data for Copy for AI feature
-  const requestData = <%= {
-    name: @request[:name],
-    duration_ms: total_duration_ms,
-    http_method: http_method,
-    http_status: http_status,
-    http_target: http_target,
-    controller: controller,
-    action: action
-  }.to_json.html_safe %>;
-
-  const spansData = <%= @child_spans.map { |span|
-    {
-      name: span[:name],
-      duration_ms: span[:duration_ms],
-      offset_ms: (span[:start_timestamp] - root_start) / 1_000_000.0,
-      properties: span[:properties]
-    }
-  }.to_json.html_safe %>;
-
-  function formatDuration(ms) {
-    if (ms === null || ms === undefined) return '0ms';
-    if (ms >= 1000) return (ms / 1000).toFixed(2) + 's';
-    return ms.toFixed(2) + 'ms';
-  }
-
-  function getSpanCategory(name) {
-    name = (name || '').toLowerCase();
-    if (name.includes('sql') || name.includes('mysql') || name.includes('postgres') || name.includes('sqlite')) return 'sql';
-    if (name.includes('cache')) return 'cache';
-    if (name.includes('render') || name.includes('view')) return 'view';
-    if (name.includes('http') || name.includes('net_http') || name.includes('faraday')) return 'http';
-    if (name.includes('mail')) return 'mailer';
-    if (name.includes('job') || name.includes('active_job')) return 'job';
-    if (name.includes('action_controller') || name.includes('process_action')) return 'controller';
-    return 'other';
-  }
-
-  function copyForAI() {
-    let output = [];
-
-    output.push(`> Given this Rails request trace, how would you improve performance? What information is missing that would help diagnose issues?`);
-    output.push('');
-
-    const method = requestData.http_method || 'GET';
-    const status = requestData.http_status || '200';
-    output.push(`# ${method} ${requestData.name} [${status}] - ${formatDuration(requestData.duration_ms)}`);
-    if (requestData.controller && requestData.action) {
-      output.push(`Controller: ${requestData.controller}#${requestData.action}`);
-    }
-    output.push('');
-
-    // Performance Summary
-    output.push('## Performance Summary');
-    output.push('');
-    output.push(`- **Total:** ${formatDuration(requestData.duration_ms)}`);
-
-    // SQL stats
-    const sqlSpans = spansData.filter(s => getSpanCategory(s.name) === 'sql');
-    if (sqlSpans.length > 0) {
-      const sqlTotalMs = sqlSpans.reduce((sum, s) => sum + (s.duration_ms || 0), 0);
-      output.push(`- **SQL:** ${sqlSpans.length} queries, ${formatDuration(sqlTotalMs)} total`);
-
-      // Find slowest queries
-      const slowest = [...sqlSpans].sort((a, b) => (b.duration_ms || 0) - (a.duration_ms || 0)).slice(0, 3);
-      if (slowest.length > 0 && slowest[0].duration_ms > 1) {
-        const slowList = slowest.map(s => `${s.properties?.['db.statement']?.substring(0, 50) || s.name} (${formatDuration(s.duration_ms)})`).join(', ');
-        output.push(`- **Slowest queries:** ${slowList}`);
-      }
-    }
-
-    // View rendering stats
-    const viewSpans = spansData.filter(s => getSpanCategory(s.name) === 'view');
-    if (viewSpans.length > 0) {
-      const viewTotalMs = viewSpans.reduce((sum, s) => sum + (s.duration_ms || 0), 0);
-      output.push(`- **Views:** ${viewSpans.length} renders, ${formatDuration(viewTotalMs)} total`);
-    }
-
-    output.push('');
-
-    // Timeline
-    output.push('## Timeline');
-    output.push('');
-
-    spansData.forEach((span) => {
-      const offset = formatDuration(span.offset_ms);
-      const duration = formatDuration(span.duration_ms);
-      const props = span.properties || {};
-      let name = span.name;
-      let extra = '';
-
-      const category = getSpanCategory(span.name);
-      if (category === 'sql' && props['db.statement']) {
-        name = 'SQL';
-        extra = props['db.statement'];
-      } else if (category === 'view' && props['identifier']) {
-        name = 'View';
-        extra = props['identifier'].replace(/.*\/app\/views\//, '');
-      } else if (category === 'http') {
-        name = 'HTTP';
-        extra = `${props['http.method'] || ''} ${props['http.url'] || props['http.target'] || ''}`.trim();
-      }
-
-      let line = `${offset.padStart(8)} | ${duration.padStart(8)} | ${name}`;
-      if (extra) {
-        line += `: ${extra}`;
-      }
-      output.push(line);
-    });
-
-    const text = output.join('\n');
-
-    navigator.clipboard.writeText(text).then(() => {
-      const btn = document.getElementById('copy-ai-btn');
-      const originalHTML = btn.innerHTML;
-      btn.classList.add('copied');
-      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!';
-      setTimeout(() => {
-        btn.classList.remove('copied');
-        btn.innerHTML = originalHTML;
-      }, 2000);
-    });
-  }
-
   function showTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));

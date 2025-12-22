@@ -5,6 +5,7 @@ module Caboose
     attr_accessor :enabled
     attr_accessor :retention_hours
     attr_accessor :max_spans
+    attr_accessor :ignore_request
     attr_writer :database_path
 
     def initialize
@@ -12,6 +13,7 @@ module Caboose
       @retention_hours = 24
       @max_spans = 1000
       @database_path = nil
+      @ignore_request = ->(request) { false }
     end
 
     def database_path

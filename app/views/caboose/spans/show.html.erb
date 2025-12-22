@@ -1,0 +1,268 @@
+<style>
+  .detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .detail-header-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .detail-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .detail-title h1 {
+    font-size: 18px;
+    font-weight: 600;
+    word-break: break-all;
+    color: var(--text-primary);
+  }
+
+  .detail-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .meta-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .meta-value {
+    font-size: 14px;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .meta-value.mono {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .meta-value a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .meta-value a:hover {
+    text-decoration: underline;
+  }
+
+  /* Details Grid */
+  .details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .detail-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .detail-value {
+    font-size: 14px;
+    color: var(--text-primary);
+    word-break: break-all;
+  }
+
+  .detail-value.mono {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+  }
+
+  /* SQL/Statement display */
+  .statement-block {
+    margin: 0;
+    padding: 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  .statement-block pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* Events section */
+  .events-section {
+    border-top: 1px solid var(--border);
+    padding: 20px;
+  }
+
+  .events-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+  }
+
+  .event-item {
+    padding: 12px;
+    background: var(--bg-body);
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+
+  .event-name {
+    font-weight: 600;
+    color: var(--error);
+    margin-bottom: 8px;
+  }
+
+  .event-props {
+    font-size: 13px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+</style>
+
+<%
+  props = @span[:properties] || {}
+  events = @span[:events] || []
+
+  started_at = Time.at(@span[:start_timestamp] / 1_000_000_000.0) rescue nil
+
+  # Determine badge class based on category
+  badge_class = case @category
+    when "queries" then "sql"
+    when "cache" then "cache"
+    when "views" then "view"
+    when "http" then "http"
+    when "mail" then "mail"
+    when "exceptions" then "exception"
+    else "other"
+  end
+
+  # Get display name
+  display_name = @span[:name]
+
+  # Get statement/content for code block
+  statement = case @category
+    when "queries"
+      props["db.statement"]
+    when "redis"
+      props["db.statement"]
+    when "http"
+      nil # No statement block for HTTP
+    else
+      nil
+  end
+
+  # Root span link
+  root_path = if @span[:root_trace_id]
+    if @span[:root_kind] == "consumer"
+      job_path(@span[:root_trace_id])
+    else
+      request_path(@span[:root_trace_id])
+    end
+  end
+
+  root_label = if @span[:root_name]
+    if @span[:root_kind] == "consumer"
+      "Job: #{@span[:root_name].to_s.sub(/ (process|publish)$/, '')}"
+    else
+      "Request: #{@span[:root_name]}"
+    end
+  end
+%>
+
+<div class="page-header">
+  <div class="detail-header">
+    <div class="detail-header-left">
+      <div class="detail-title">
+        <span class="badge badge-<%= badge_class %>"><%= @category&.singularize&.titleize || "Span" %></span>
+        <h1><%= display_name %></h1>
+      </div>
+      <div class="detail-meta">
+        <div class="meta-item">
+          <span class="meta-label">Duration</span>
+          <span class="meta-value mono"><%= format_duration(@span[:duration_ms]) %></span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Time</span>
+          <span class="meta-value"><%= started_at&.strftime("%b %d, %Y %H:%M:%S") %></span>
+        </div>
+        <% if root_path %>
+          <div class="meta-item">
+            <span class="meta-label">Parent</span>
+            <span class="meta-value"><a href="<%= root_path %>"><%= root_label %></a></span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="card">
+    <% if props.present? && props.any? %>
+      <div class="details-grid">
+        <% props.each do |key, value| %>
+          <% next if key == "db.statement" && statement %>
+          <% next if value.is_a?(Hash) || value.is_a?(Array) %>
+          <div class="detail-item">
+            <span class="detail-label"><%= key.to_s.tr(".", " ").titleize %></span>
+            <span class="detail-value <%= 'mono' if key.include?('.') %>"><%= value %></span>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if statement.present? %>
+      <div class="statement-block">
+        <pre><code><%= statement %></code></pre>
+      </div>
+    <% end %>
+
+    <% if events.any? %>
+      <div class="events-section">
+        <div class="events-title">Events (<%= events.size %>)</div>
+        <% events.each do |event| %>
+          <div class="event-item">
+            <div class="event-name"><%= event[:name] %></div>
+            <% if event[:properties].present? %>
+              <div class="event-props">
+                <% event[:properties].each do |key, value| %>
+                  <div><strong><%= key %>:</strong> <%= value.to_s.truncate(500) %></div>
+                <% end %>
+              </div>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if props.blank? && statement.blank? && events.empty? %>
+      <div style="padding: 40px; text-align: center; color: var(--text-muted);">
+        No additional details available for this span.
+      </div>
+    <% end %>
+  </div>
+</div>

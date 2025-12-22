@@ -79,7 +79,12 @@ module Caboose
 
       # Configure specific instrumentations
       c.use "OpenTelemetry::Instrumentation::Rack",
-        untraced_requests: ->(env) { env["PATH_INFO"]&.start_with?("/caboose") }
+        untraced_requests: ->(env) {
+          return true if env["PATH_INFO"]&.start_with?("/caboose")
+
+          request = Rack::Request.new(env)
+          configuration.ignore_request.call(request)
+        }
       c.use "OpenTelemetry::Instrumentation::Net::HTTP"
       c.use "OpenTelemetry::Instrumentation::ActiveSupport"
       c.use "OpenTelemetry::Instrumentation::ActionPack" if defined?(ActionController)
@@ -94,22 +99,55 @@ module Caboose
     @otel_configured = true
   end
 
-  # Common notification patterns to subscribe to
-  NOTIFICATION_PATTERNS = %w[
-    sql.active_record
-    instantiation.active_record
-    cache_read.active_support
-    cache_write.active_support
-    cache_delete.active_support
-    cache_exist?.active_support
-    cache_fetch_hit.active_support
-    deliver.action_mailer
-    process.action_mailer
-  ].freeze
+  # Payload transformers for different notification types
+  NOTIFICATION_TRANSFORMERS = {
+    "sql.active_record" => ->(payload) {
+      attrs = {}
+      attrs["db.statement"] = payload[:sql] if payload[:sql]
+      attrs["name"] = payload[:name] if payload[:name]
+      attrs["db.name"] = payload[:connection]&.pool&.db_config&.name rescue nil
+      attrs
+    },
+    "instantiation.active_record" => ->(payload) {
+      attrs = {}
+      attrs["record_count"] = payload[:record_count] if payload[:record_count]
+      attrs["class_name"] = payload[:class_name] if payload[:class_name]
+      attrs
+    },
+    "cache_read.active_support" => ->(payload) {
+      { "key" => payload[:key]&.to_s, "hit" => payload[:hit] }
+    },
+    "cache_write.active_support" => ->(payload) {
+      { "key" => payload[:key]&.to_s }
+    },
+    "cache_delete.active_support" => ->(payload) {
+      { "key" => payload[:key]&.to_s }
+    },
+    "cache_exist?.active_support" => ->(payload) {
+      { "key" => payload[:key]&.to_s, "exist" => payload[:exist] }
+    },
+    "cache_fetch_hit.active_support" => ->(payload) {
+      { "key" => payload[:key]&.to_s }
+    },
+    "deliver.action_mailer" => ->(payload) {
+      attrs = {}
+      attrs["mailer"] = payload[:mailer] if payload[:mailer]
+      attrs["message_id"] = payload[:message_id] if payload[:message_id]
+      attrs["to"] = Array(payload[:to]).join(", ") if payload[:to]
+      attrs["subject"] = payload[:subject] if payload[:subject]
+      attrs
+    },
+    "process.action_mailer" => ->(payload) {
+      attrs = {}
+      attrs["mailer"] = payload[:mailer] if payload[:mailer]
+      attrs["action"] = payload[:action] if payload[:action]
+      attrs
+    }
+  }.freeze
 
   def subscribe_to_notifications
-    NOTIFICATION_PATTERNS.each do |pattern|
-      OpenTelemetry::Instrumentation::ActiveSupport.subscribe(tracer, pattern)
+    NOTIFICATION_TRANSFORMERS.each do |pattern, transformer|
+      OpenTelemetry::Instrumentation::ActiveSupport.subscribe(tracer, pattern, transformer)
     rescue => e
       # Ignore errors for patterns that don't exist
     end

@@ -99,6 +99,212 @@ module Caboose
         rows.map { |row| row_to_request(row) }
       end
 
+      # List root spans that are jobs (for the jobs index)
+      def list_jobs(status: nil, name: nil, limit: 50, offset: 0)
+        # Find root spans with kind=consumer (ActiveJob processing)
+        conditions = ["s.parent_span_id = ?", "s.kind = ?"]
+        values = [MISSING_PARENT_ID, "consumer"]
+
+        if name
+          conditions << "s.name LIKE ?"
+          values << "%#{name}%"
+        end
+
+        where_clause = "WHERE #{conditions.join(" AND ")}"
+        values << limit
+        values << offset
+
+        rows = query_all(<<~SQL, values)
+          SELECT s.*,
+                 job_class_prop.value as job_class,
+                 queue_prop.value as queue_name
+          FROM caboose_spans s
+          LEFT JOIN caboose_properties job_class_prop ON job_class_prop.owner_type = 'Caboose::Span' AND job_class_prop.owner_id = s.id AND job_class_prop.key = 'code.namespace'
+          LEFT JOIN caboose_properties queue_prop ON queue_prop.owner_type = 'Caboose::Span' AND queue_prop.owner_id = s.id AND queue_prop.key = 'messaging.destination'
+          #{where_clause}
+          ORDER BY s.created_at DESC
+          LIMIT ? OFFSET ?
+        SQL
+
+        rows.map { |row| row_to_job(row) }
+      end
+
+      # Span category patterns for filtering
+      SPAN_CATEGORIES = {
+        "queries" => ["sql.active_record", "mysql", "postgres", "sqlite"],
+        "cache" => ["cache_read.active_support", "cache_write.active_support", "cache_delete.active_support", "cache_exist?.active_support", "cache_fetch_hit.active_support"],
+        "views" => ["render_template.action_view", "render_partial.action_view", "render_layout.action_view", "render_collection.action_view"],
+        "http" => ["HTTP", "net_http"],
+        "mail" => ["deliver.action_mailer", "process.action_mailer"],
+        "redis" => ["redis"],
+        "exceptions" => [] # Handled specially via events
+      }.freeze
+
+      # List spans by category (for the spans listing pages)
+      def list_spans_by_category(category, name: nil, limit: 50, offset: 0)
+        patterns = SPAN_CATEGORIES[category] || []
+        return [] if patterns.empty? && category != "exceptions"
+
+        if category == "exceptions"
+          # Exceptions are stored as events on spans, not as spans themselves
+          return list_exception_spans(name: name, limit: limit, offset: offset)
+        end
+
+        conditions = ["s.parent_span_id != ?"]
+        values = [MISSING_PARENT_ID]
+
+        # Build OR conditions for matching span names
+        pattern_conditions = patterns.map { "s.name LIKE ?" }
+        conditions << "(#{pattern_conditions.join(" OR ")})"
+        patterns.each { |p| values << "%#{p}%" }
+
+        if name
+          conditions << "s.name LIKE ?"
+          values << "%#{name}%"
+        end
+
+        where_clause = "WHERE #{conditions.join(" AND ")}"
+        values << limit
+        values << offset
+
+        rows = query_all(<<~SQL, values)
+          SELECT s.*,
+                 root.trace_id as root_trace_id,
+                 root.name as root_name,
+                 root.kind as root_kind
+          FROM caboose_spans s
+          LEFT JOIN caboose_spans root ON root.trace_id = s.trace_id AND root.parent_span_id = '#{MISSING_PARENT_ID}'
+          #{where_clause}
+          ORDER BY s.created_at DESC
+          LIMIT ? OFFSET ?
+        SQL
+
+        rows.map { |row| row_to_span_with_root(row) }
+      end
+
+      def count_spans_by_category(category, name: nil)
+        patterns = SPAN_CATEGORIES[category] || []
+        return 0 if patterns.empty? && category != "exceptions"
+
+        if category == "exceptions"
+          return count_exception_spans(name: name)
+        end
+
+        conditions = ["s.parent_span_id != ?"]
+        values = [MISSING_PARENT_ID]
+
+        pattern_conditions = patterns.map { "s.name LIKE ?" }
+        conditions << "(#{pattern_conditions.join(" OR ")})"
+        patterns.each { |p| values << "%#{p}%" }
+
+        if name
+          conditions << "s.name LIKE ?"
+          values << "%#{name}%"
+        end
+
+        where_clause = "WHERE #{conditions.join(" AND ")}"
+
+        row = query_one(<<~SQL, values)
+          SELECT COUNT(*) as count
+          FROM caboose_spans s
+          #{where_clause}
+        SQL
+
+        row ? row["count"] : 0
+      end
+
+      # Find a single span by its database ID
+      def find_span(id)
+        row = query_one(<<~SQL, [id])
+          SELECT s.*,
+                 root.trace_id as root_trace_id,
+                 root.name as root_name,
+                 root.kind as root_kind
+          FROM caboose_spans s
+          LEFT JOIN caboose_spans root ON root.trace_id = s.trace_id AND root.parent_span_id = '#{MISSING_PARENT_ID}'
+          WHERE s.id = ?
+        SQL
+
+        return nil unless row
+
+        span = row_to_span_with_root(row)
+        span[:properties] = load_properties("Caboose::Span", span[:id])
+        span[:events] = load_events_for_spans([span[:id]])[span[:id]] || []
+        span
+      end
+
+      # List spans that have exception events
+      def list_exception_spans(name: nil, limit: 50, offset: 0)
+        conditions = []
+        values = []
+
+        if name
+          conditions << "e.name LIKE ?"
+          values << "%#{name}%"
+        end
+
+        where_clause = conditions.any? ? "WHERE #{conditions.join(" AND ")}" : ""
+        values << limit
+        values << offset
+
+        rows = query_all(<<~SQL, values)
+          SELECT DISTINCT s.*,
+                 root.trace_id as root_trace_id,
+                 root.name as root_name,
+                 root.kind as root_kind,
+                 e.name as exception_name
+          FROM caboose_events e
+          JOIN caboose_spans s ON s.id = e.span_id
+          LEFT JOIN caboose_spans root ON root.trace_id = s.trace_id AND root.parent_span_id = '#{MISSING_PARENT_ID}'
+          #{where_clause}
+          ORDER BY e.created_at DESC
+          LIMIT ? OFFSET ?
+        SQL
+
+        rows.map { |row| row_to_span_with_root(row) }
+      end
+
+      def count_exception_spans(name: nil)
+        conditions = []
+        values = []
+
+        if name
+          conditions << "e.name LIKE ?"
+          values << "%#{name}%"
+        end
+
+        where_clause = conditions.any? ? "WHERE #{conditions.join(" AND ")}" : ""
+
+        row = query_one(<<~SQL, values)
+          SELECT COUNT(DISTINCT s.id) as count
+          FROM caboose_events e
+          JOIN caboose_spans s ON s.id = e.span_id
+          #{where_clause}
+        SQL
+
+        row ? row["count"] : 0
+      end
+
+      def count_jobs(status: nil, name: nil)
+        conditions = ["s.parent_span_id = ?", "s.kind = ?"]
+        values = [MISSING_PARENT_ID, "consumer"]
+
+        if name
+          conditions << "s.name LIKE ?"
+          values << "%#{name}%"
+        end
+
+        where_clause = "WHERE #{conditions.join(" AND ")}"
+
+        row = query_one(<<~SQL, values)
+          SELECT COUNT(*) as count
+          FROM caboose_spans s
+          #{where_clause}
+        SQL
+
+        row ? row["count"] : 0
+      end
+
       def count_requests(status: nil, method: nil, name: nil, origin: nil)
         conditions = ["s.parent_span_id = ?", "s.kind = ?"]
         values = [MISSING_PARENT_ID, "server"]
@@ -158,6 +364,21 @@ module Caboose
         SQL
 
         row ? row["count"] : 0
+      end
+
+      # Find a job by trace_id (for the detail view)
+      def find_job(trace_id)
+        row = query_one(<<~SQL, [trace_id, MISSING_PARENT_ID, "consumer"])
+          SELECT s.*
+          FROM caboose_spans s
+          WHERE s.trace_id = ? AND s.parent_span_id = ? AND s.kind = ?
+        SQL
+
+        return nil unless row
+
+        span = row_to_span(row)
+        span[:properties] = load_properties("Caboose::Span", span[:id])
+        span
       end
 
       # Find a request by trace_id (for the detail view)
@@ -459,6 +680,28 @@ module Caboose
         span[:http_target] = parse_property_value(row["http_target"], 0)
         span[:controller] = parse_property_value(row["controller"], 0)
         span[:action] = parse_property_value(row["action"], 0)
+
+        span
+      end
+
+      def row_to_job(row)
+        span = row_to_span(row)
+
+        # Add convenience accessors from the joined properties
+        span[:job_class] = parse_property_value(row["job_class"], 0)
+        span[:queue_name] = parse_property_value(row["queue_name"], 0)
+
+        span
+      end
+
+      def row_to_span_with_root(row)
+        span = row_to_span(row)
+
+        # Add root span info for linking back to request/job
+        span[:root_trace_id] = row["root_trace_id"]
+        span[:root_name] = row["root_name"]
+        span[:root_kind] = row["root_kind"]
+        span[:exception_name] = row["exception_name"] if row["exception_name"]
 
         span
       end

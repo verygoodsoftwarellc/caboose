@@ -222,7 +222,7 @@ class SQLiteExporterTest < Minitest::Test
 
   def test_creates_parent_directory_if_missing
     nested_path = File.join(@tmp_dir, "nested", "dir", "test.sqlite3")
-    exporter = Caboose::SQLiteExporter.new(nested_path)
+    _exporter = Caboose::SQLiteExporter.new(nested_path)
 
     assert File.exist?(nested_path)
   end

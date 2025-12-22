@@ -130,9 +130,17 @@
           <tbody>
             <% @requests.each do |req| %>
               <% started_at = Time.at(req[:start_timestamp] / 1_000_000_000.0) rescue nil %>
+              <%
+                # Display controller#action if available, otherwise fall back to span name
+                display_name = if req[:controller] && req[:action]
+                  "#{req[:controller]}##{req[:action]}"
+                else
+                  req[:name]
+                end
+              %>
               <tr onclick="window.location='<%= request_path(req[:trace_id]) %>'" style="cursor: pointer;">
                 <td class="path-cell">
-                  <span class="action-name path-text" title="<%= req[:name] %>"><%= req[:name] %></span>
+                  <span class="action-name path-text" title="<%= display_name %>"><%= display_name %></span>
                   <span class="path-subtext" title="<%= req[:http_target] %>">
                     <%= req[:http_target] %>
                   </span>
