@@ -140,6 +140,9 @@ module Caboose
         "exceptions" => [] # Handled specially via events
       }.freeze
 
+      # Transaction statements to filter out from queries list
+      TRANSACTION_STATEMENTS = %w[BEGIN COMMIT ROLLBACK].freeze
+
       # List spans by category (for the spans listing pages)
       def list_spans_by_category(category, name: nil, limit: 50, offset: 0)
         patterns = SPAN_CATEGORIES[category] || []
@@ -163,6 +166,15 @@ module Caboose
           values << "%#{name}%"
         end
 
+        # For queries, exclude transaction statements (BEGIN, COMMIT, ROLLBACK)
+        transaction_join = ""
+        if category == "queries"
+          transaction_join = "LEFT JOIN caboose_properties stmt_prop ON stmt_prop.owner_type = 'Caboose::Span' AND stmt_prop.owner_id = s.id AND stmt_prop.key = 'db.statement'"
+          exclusions = TRANSACTION_STATEMENTS.map { "?" }.join(", ")
+          conditions << "(stmt_prop.value IS NULL OR stmt_prop.value NOT IN (#{exclusions}))"
+          TRANSACTION_STATEMENTS.each { |stmt| values << "\"#{stmt}\"" }
+        end
+
         where_clause = "WHERE #{conditions.join(" AND ")}"
         values << limit
         values << offset
@@ -178,6 +190,7 @@ module Caboose
           LEFT JOIN caboose_spans root ON root.trace_id = s.trace_id AND root.parent_span_id = '#{MISSING_PARENT_ID}'
           LEFT JOIN caboose_properties root_controller ON root_controller.owner_type = 'Caboose::Span' AND root_controller.owner_id = root.id AND root_controller.key = 'code.namespace'
           LEFT JOIN caboose_properties root_action ON root_action.owner_type = 'Caboose::Span' AND root_action.owner_id = root.id AND root_action.key = 'code.function'
+          #{transaction_join}
           #{where_clause}
           ORDER BY s.created_at DESC
           LIMIT ? OFFSET ?
@@ -206,11 +219,21 @@ module Caboose
           values << "%#{name}%"
         end
 
+        # For queries, exclude transaction statements (BEGIN, COMMIT, ROLLBACK)
+        transaction_join = ""
+        if category == "queries"
+          transaction_join = "LEFT JOIN caboose_properties stmt_prop ON stmt_prop.owner_type = 'Caboose::Span' AND stmt_prop.owner_id = s.id AND stmt_prop.key = 'db.statement'"
+          exclusions = TRANSACTION_STATEMENTS.map { "?" }.join(", ")
+          conditions << "(stmt_prop.value IS NULL OR stmt_prop.value NOT IN (#{exclusions}))"
+          TRANSACTION_STATEMENTS.each { |stmt| values << "\"#{stmt}\"" }
+        end
+
         where_clause = "WHERE #{conditions.join(" AND ")}"
 
         row = query_one(<<~SQL, values)
           SELECT COUNT(*) as count
           FROM caboose_spans s
+          #{transaction_join}
           #{where_clause}
         SQL
 

@@ -41,28 +41,20 @@ module Caboose
             # Enable or disable Caboose (default: true)
             # config.enabled = true
 
-            # How long to keep cases in hours (default: 24)
+            # How long to keep spans in hours (default: 24)
             # config.retention_hours = 24
 
-            # Maximum number of cases to store (default: 1000)
-            # config.max_cases = 1000
+            # Maximum number of spans to store (default: 500)
+            # Roughly 50-100 requests depending on spans per request
+            # config.max_spans = 500
 
             # Path to the SQLite database (default: db/caboose.sqlite3)
             # config.database_path = Rails.root.join("db", "caboose.sqlite3").to_s
 
-            # Events to ignore (these are ignored by default):
-            # config.ignore = %w[
-            #   render_partial.action_view
-            #   render_collection.action_view
-            #   render_layout.action_view
-            #   logger.action_view
-            #   process_middleware.action_dispatch
-            #   start_processing.action_controller
-            #   process_action.action_controller
-            # ]
-
-            # Add additional events to ignore:
-            # config.ignore << "some_event.to_ignore"
+            # Ignore specific requests (receives a Rack::Request, return true to ignore)
+            # config.ignore_request = ->(request) {
+            #   request.path.start_with?("/health")
+            # }
           end
         RUBY
       end

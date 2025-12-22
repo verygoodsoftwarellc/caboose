@@ -11,7 +11,7 @@ module Caboose
     def initialize
       @enabled = true
       @retention_hours = 24
-      @max_spans = 1000
+      @max_spans = 500
       @database_path = nil
       @ignore_request = ->(request) { false }
     end

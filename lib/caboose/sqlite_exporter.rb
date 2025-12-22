@@ -9,6 +9,9 @@ module Caboose
     FAILURE = OpenTelemetry::SDK::Trace::Export::FAILURE
     TIMEOUT = OpenTelemetry::SDK::Trace::Export::TIMEOUT
 
+    # Prune roughly every 100 exports (1% chance per export)
+    PRUNE_PROBABILITY = 0.01
+
     def initialize(database_path)
       @database_path = database_path
       @mutex = Mutex.new
@@ -23,6 +26,9 @@ module Caboose
           create_span(span_data)
         end
       end
+
+      # Periodically prune old data
+      maybe_prune
 
       SUCCESS
     rescue => e
@@ -39,6 +45,17 @@ module Caboose
     end
 
     private
+
+    def maybe_prune
+      return unless rand < PRUNE_PROBABILITY
+
+      Caboose.storage.prune(
+        retention_hours: Caboose.configuration.retention_hours,
+        max_spans: Caboose.configuration.max_spans
+      )
+    rescue => e
+      warn "[Caboose] Prune error: #{e.message}"
+    end
 
     def should_ignore_span?(span_data)
       span_data.name&.start_with?("Caboose::")

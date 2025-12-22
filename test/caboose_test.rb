@@ -12,6 +12,6 @@ class TestCaboose < Minitest::Test
 
     assert_equal true, config.enabled
     assert_equal 24, config.retention_hours
-    assert_equal 1000, config.max_spans
+    assert_equal 500, config.max_spans
   end
 end
