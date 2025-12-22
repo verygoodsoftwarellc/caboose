@@ -1,0 +1,323 @@
+<style>
+  .detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .detail-header-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .detail-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .detail-title h1 {
+    font-size: 18px;
+    font-weight: 600;
+    word-break: break-all;
+    color: var(--text-primary);
+  }
+
+  .detail-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .meta-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .meta-value {
+    font-size: 14px;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .meta-value.mono {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .clue-content-grid {
+    display: grid;
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .clue-content-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .clue-content-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .clue-content-value {
+    font-size: 14px;
+    color: var(--text-primary);
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--bg-body);
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    border-radius: 6px;
+    word-break: break-all;
+    white-space: pre-wrap;
+    line-height: 1.5;
+  }
+
+  .clue-content-value.empty {
+    color: var(--text-muted);
+    font-style: italic;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  .clue-content-value.sql-value {
+    font-size: 13px;
+    background: #1e293b;
+    color: #e2e8f0;
+    border: none;
+  }
+
+  .clue-content-card {
+    padding: 20px;
+  }
+
+  .clue-content-card pre {
+    margin: 0;
+    padding: 16px;
+    background: #1e293b;
+    color: #e2e8f0;
+    border-radius: 8px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .clue-empty {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-muted);
+  }
+</style>
+
+<%
+  badge_class = case @clue[:type]
+  when /sql|active_record/ then "sql"
+  when /cache/ then "cache"
+  when /render|view/ then "view"
+  when /mail/ then "mail"
+  when /job|enqueue/ then "job"
+  when /http/ then "http"
+  when /exception/ then "exception"
+  else "other"
+  end
+%>
+
+<div class="page-header">
+  <div class="detail-header">
+    <div class="detail-header-left">
+      <div class="detail-title">
+        <span class="badge badge-clue badge-<%= badge_class %>"><%= @clue[:type].split(".").first %></span>
+        <h1><%= @clue[:type] %></h1>
+      </div>
+      <div class="detail-meta">
+        <div class="meta-item">
+          <span class="meta-label">Duration</span>
+          <span class="meta-value mono"><%= format_duration(@clue[:duration_ms]) %></span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Offset</span>
+          <span class="meta-value mono"><%= @clue[:started_at_offset_ms]&.round(2) || 0 %>ms</span>
+        </div>
+        <% if @case %>
+          <div class="meta-item">
+            <span class="meta-label">Case</span>
+            <span class="meta-value"><%= link_to @case[:name], case_path(@case[:uuid]), style: "color: var(--accent);" %></span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="card">
+    <div class="card-body">
+      <% content = @clue[:content] || {} %>
+
+      <% if content.blank? %>
+        <div class="clue-empty">No additional details recorded for this clue.</div>
+      <% else %>
+        <% # Show formatted content based on clue type %>
+        <% if @clue[:type] =~ /sql|active_record/ && content["sql"] %>
+          <div class="clue-content-grid">
+            <% if content["name"].present? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label">Name</span>
+                <span class="clue-content-value"><%= content["name"] %></span>
+              </div>
+            <% end %>
+            <div class="clue-content-item">
+              <span class="clue-content-label">SQL Query</span>
+              <span class="clue-content-value sql-value"><%= content["sql"] %></span>
+            </div>
+            <% content.except("sql", "name").each do |key, value| %>
+              <% next if value.blank? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label"><%= key.to_s.titleize %></span>
+                <span class="clue-content-value"><%= value.is_a?(Hash) || value.is_a?(Array) ? JSON.pretty_generate(value) : value %></span>
+              </div>
+            <% end %>
+          </div>
+        <% elsif @clue[:type] =~ /cache/ %>
+          <div class="clue-content-grid">
+            <% if content["key"].present? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label">Cache Key</span>
+                <span class="clue-content-value"><%= content["key"] %></span>
+              </div>
+            <% end %>
+            <% if content.key?("hit") %>
+              <div class="clue-content-item">
+                <span class="clue-content-label">Cache Hit</span>
+                <span class="clue-content-value"><%= content["hit"] ? "Yes" : "No" %></span>
+              </div>
+            <% end %>
+            <% content.except("key", "hit").each do |key, value| %>
+              <% next if value.blank? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label"><%= key.to_s.titleize %></span>
+                <span class="clue-content-value"><%= value.is_a?(Hash) || value.is_a?(Array) ? JSON.pretty_generate(value) : value %></span>
+              </div>
+            <% end %>
+          </div>
+        <% elsif @clue[:type] =~ /render|view/ %>
+          <div class="clue-content-grid">
+            <% if content["identifier"].present? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label">Template</span>
+                <span class="clue-content-value"><%= content["identifier"] %></span>
+              </div>
+            <% end %>
+            <% content.except("identifier").each do |key, value| %>
+              <% next if value.blank? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label"><%= key.to_s.titleize %></span>
+                <span class="clue-content-value"><%= value.is_a?(Hash) || value.is_a?(Array) ? JSON.pretty_generate(value) : value %></span>
+              </div>
+            <% end %>
+          </div>
+        <% elsif @clue[:type] =~ /mail/ %>
+          <div class="clue-content-grid">
+            <% %w[mailer action to from subject].each do |field| %>
+              <% if content[field].present? %>
+                <div class="clue-content-item">
+                  <span class="clue-content-label"><%= field.titleize %></span>
+                  <span class="clue-content-value"><%= content[field] %></span>
+                </div>
+              <% end %>
+            <% end %>
+            <% content.except("mailer", "action", "to", "from", "subject").each do |key, value| %>
+              <% next if value.blank? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label"><%= key.to_s.titleize %></span>
+                <span class="clue-content-value"><%= value.is_a?(Hash) || value.is_a?(Array) ? JSON.pretty_generate(value) : value %></span>
+              </div>
+            <% end %>
+          </div>
+        <% elsif @clue[:type] =~ /http/ %>
+          <div class="clue-content-grid">
+            <% %w[method url host path status content_length].each do |field| %>
+              <% if content[field].present? %>
+                <div class="clue-content-item">
+                  <span class="clue-content-label"><%= field.titleize %></span>
+                  <span class="clue-content-value"><%= content[field] %></span>
+                </div>
+              <% end %>
+            <% end %>
+            <% if content["error"].present? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label">Error</span>
+                <span class="clue-content-value" style="color: var(--error);"><%= content["error"] %>: <%= content["error_message"] %></span>
+              </div>
+            <% end %>
+            <% content.except("method", "url", "host", "path", "status", "content_length", "error", "error_message").each do |key, value| %>
+              <% next if value.blank? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label"><%= key.to_s.titleize %></span>
+                <span class="clue-content-value"><%= value.is_a?(Hash) || value.is_a?(Array) ? JSON.pretty_generate(value) : value %></span>
+              </div>
+            <% end %>
+          </div>
+        <% elsif @clue[:type] =~ /exception/ %>
+          <div class="clue-content-grid">
+            <div class="clue-content-item">
+              <span class="clue-content-label">Exception Class</span>
+              <span class="clue-content-value" style="color: var(--error); font-weight: 600;"><%= content["class"] %></span>
+            </div>
+            <% if content["message"].present? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label">Message</span>
+                <span class="clue-content-value"><%= content["message"] %></span>
+              </div>
+            <% end %>
+            <% if content["severity"].present? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label">Severity</span>
+                <span class="clue-content-value"><%= content["severity"] %></span>
+              </div>
+            <% end %>
+            <% if content["handled"] == true || content["handled"] == false %>
+              <div class="clue-content-item">
+                <span class="clue-content-label">Handled</span>
+                <span class="clue-content-value"><%= content["handled"] ? "Yes" : "No" %></span>
+              </div>
+            <% end %>
+            <% if content["backtrace"].present? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label">Backtrace</span>
+                <span class="clue-content-value sql-value" style="font-size: 12px; line-height: 1.8;"><%= content["backtrace"].join("\n") %></span>
+              </div>
+            <% end %>
+            <% content.except("class", "message", "severity", "handled", "backtrace", "source", "context").each do |key, value| %>
+              <% next if value.blank? %>
+              <div class="clue-content-item">
+                <span class="clue-content-label"><%= key.to_s.titleize %></span>
+                <span class="clue-content-value"><%= value.is_a?(Hash) || value.is_a?(Array) ? JSON.pretty_generate(value) : value %></span>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="clue-content-card">
+            <pre><code><%= JSON.pretty_generate(content) %></code></pre>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

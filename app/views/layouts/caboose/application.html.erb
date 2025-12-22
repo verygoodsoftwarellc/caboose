@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Caboose - Investigating what happened in your Rails app</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <%= csrf_meta_tags %>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-body: #f4f6f9;
+      --bg-sidebar: #fff;
+      --bg-card: #fff;
+      --bg-hover: #f8fafc;
+      --bg-code: #1e293b;
+      --text-primary: #1e293b;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-light: #eef2ff;
+      --accent-hover: #4f46e5;
+      --success: #22c55e;
+      --success-bg: #dcfce7;
+      --warning: #f59e0b;
+      --warning-bg: #fef3c7;
+      --error: #ef4444;
+      --error-bg: #fee2e2;
+      --border: #e2e8f0;
+      --border-light: #f1f5f9;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+      --radius: 8px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-body);
+      color: var(--text-primary);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    .app-layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 240px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 100;
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      min-height: 73px;
+      display: flex;
+      align-items: center;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-icon svg {
+      width: 18px;
+      height: 18px;
+      color: white;
+    }
+
+    .logo-text {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.025em;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 16px 12px;
+      overflow-y: auto;
+    }
+
+    .nav-section {
+      margin-bottom: 24px;
+    }
+
+    .nav-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      padding: 0 8px;
+      margin-bottom: 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+
+    .nav-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+
+    .nav-item.active {
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+
+    .nav-item svg {
+      width: 18px;
+      height: 18px;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+
+    .nav-item.active svg {
+      opacity: 1;
+    }
+
+    .nav-item-count {
+      margin-left: auto;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: var(--border-light);
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .nav-item.active .nav-item-count {
+      background: var(--accent);
+      color: white;
+    }
+
+    /* Sidebar Footer */
+    .sidebar-footer {
+      padding: 16px 12px;
+      border-top: 1px solid var(--border);
+      margin-top: auto;
+    }
+
+    /* Flipper Ad */
+    .sidebar-ad {
+      display: block;
+      padding: 12px;
+      margin-bottom: 12px;
+      border-radius: 6px;
+      background: var(--bg-hover);
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+
+    .sidebar-ad:hover {
+      background: var(--border-light);
+    }
+
+    .sidebar-ad-inner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sidebar-ad-logo {
+      width: 48px;
+      height: 48px;
+      flex-shrink: 0;
+    }
+
+    .sidebar-ad-logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .sidebar-ad-text {
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--text-secondary);
+    }
+
+    .sidebar-ad-title {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .btn-clear {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-clear:hover {
+      background: var(--error-bg);
+      color: var(--error);
+    }
+
+    .btn-clear svg {
+      width: 18px;
+      height: 18px;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+
+    .btn-clear:hover svg {
+      opacity: 1;
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      margin-left: 240px;
+      min-height: 100vh;
+    }
+
+    .page-header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 32px;
+      min-height: 73px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .page-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .page-body {
+      padding: 24px 32px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .card-body {
+      padding: 0;
+    }
+
+    /* Search */
+    .search-box {
+      position: relative;
+    }
+
+    .search-box input {
+      width: 220px;
+      padding: 8px 12px 8px 36px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+      background: var(--bg-body);
+      color: var(--text-primary);
+      transition: all 0.15s ease;
+    }
+
+    .search-box input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+
+    .search-box input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-box svg {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 16px;
+      height: 16px;
+      color: var(--text-muted);
+    }
+
+    /* Table */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .data-table th {
+      text-align: left;
+      padding: 12px 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      background: var(--bg-body);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .data-table td {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: middle;
+      font-size: 14px;
+    }
+
+    .data-table tbody tr {
+      transition: background 0.1s ease;
+    }
+
+    .data-table tbody tr:hover {
+      background: var(--bg-hover);
+    }
+
+    .data-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    /* Badges */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .badge-verb {
+      background: var(--border-light);
+      color: var(--text-secondary);
+    }
+
+    .badge-get { background: #dbeafe; color: #1d4ed8; }
+    .badge-post { background: #dcfce7; color: #15803d; }
+    .badge-put, .badge-patch { background: #fef3c7; color: #b45309; }
+    .badge-delete { background: #fee2e2; color: #dc2626; }
+
+    .badge-status {
+      min-width: 40px;
+      justify-content: center;
+    }
+
+    .badge-success { background: var(--success-bg); color: #15803d; }
+    .badge-error { background: var(--error-bg); color: #dc2626; }
+    .badge-warning { background: var(--warning-bg); color: #b45309; }
+
+    .badge-type {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-weight: 500;
+    }
+
+    .badge-request { background: #dbeafe; color: #1d4ed8; }
+    .badge-job { background: #f3e8ff; color: #7c3aed; }
+
+    .badge-clue { font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+    .badge-sql { background: #dbeafe; color: #1d4ed8; }
+    .badge-cache { background: #dcfce7; color: #15803d; }
+    .badge-view { background: #fef3c7; color: #b45309; }
+    .badge-mail { background: #fce7f3; color: #be185d; }
+    .badge-http { background: #e0e7ff; color: #4338ca; }
+    .badge-exception { background: #fee2e2; color: #dc2626; }
+    .badge-other { background: #f1f5f9; color: #64748b; }
+
+    /* Links */
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      color: var(--accent-hover);
+    }
+
+    /* View Button */
+    .btn-view {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+    }
+
+    .btn-view:hover {
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+
+    .btn-view svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .muted {
+      color: var(--text-muted);
+    }
+
+    /* Timestamps */
+    .timestamp {
+      color: var(--text-muted);
+      font-size: 13px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+
+    .empty-state-icon {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 16px;
+      color: var(--text-muted);
+    }
+
+    .empty-state h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    /* Code blocks */
+    pre {
+      background: var(--bg-code);
+      color: #e2e8f0;
+      padding: 16px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    code {
+      font-family: 'IBM Plex Mono', 'SF Mono', Monaco, monospace;
+    }
+
+    /* Alert */
+    .alert {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      background: var(--error-bg);
+      color: var(--error);
+      font-size: 14px;
+    }
+
+    /* Path Cell */
+    .path-cell {
+      max-width: 400px;
+    }
+
+    .path-text {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .path-subtext {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    /* Duration */
+    .duration {
+      font-variant-numeric: tabular-nums;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-align: right;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .sidebar {
+        width: 72px;
+      }
+      .sidebar-header {
+        padding: 16px;
+      }
+      .logo-text, .nav-section-title, .nav-item span, .nav-item-count, .btn-clear span {
+        display: none;
+      }
+      .nav-item {
+        justify-content: center;
+        padding: 12px;
+      }
+      .btn-clear {
+        justify-content: center;
+        padding: 12px;
+      }
+      .main-content {
+        margin-left: 72px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="<%= caboose.root_path %>" class="logo">
+          <div class="logo-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <!-- Caboose -->
+              <rect x="2" y="8" width="16" height="10" rx="1"></rect>
+              <rect x="18" y="11" width="4" height="7" rx="1"></rect>
+              <rect x="5" y="4" width="6" height="4" rx="1"></rect>
+              <circle cx="6" cy="20" r="2"></circle>
+              <circle cx="14" cy="20" r="2"></circle>
+              <line x1="8" y1="11" x2="8" y2="15"></line>
+              <line x1="12" y1="11" x2="12" y2="15"></line>
+            </svg>
+          </div>
+          <span class="logo-text">Caboose</span>
+        </a>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-section">
+          <div class="nav-section-title">Cases</div>
+
+          <a href="<%= caboose.cases_path(type: 'request') %>" class="nav-item <%= 'active' if current_section == 'requests' || current_section == 'all' %>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            <span>Requests</span>
+          </a>
+
+          <a href="<%= caboose.cases_path(type: 'job') %>" class="nav-item <%= 'active' if current_section == 'jobs' %>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="20" height="14" x="2" y="7" rx="2" ry="2"></rect>
+              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+            </svg>
+            <span>Jobs</span>
+          </a>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-section-title">Clues</div>
+
+          <a href="<%= caboose.clues_path(type: 'sql') %>" class="nav-item <%= 'active' if current_section == 'queries' %>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+              <path d="M3 5V19A9 3 0 0 0 21 19V5"></path>
+              <path d="M3 12A9 3 0 0 0 21 12"></path>
+            </svg>
+            <span>Queries</span>
+          </a>
+
+          <a href="<%= caboose.clues_path(type: 'cache') %>" class="nav-item <%= 'active' if current_section == 'cache' %>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2v4"></path>
+              <path d="m6.8 14-3.5 2"></path>
+              <path d="m20.7 16-3.5-2"></path>
+              <path d="M6.8 10 3.3 8"></path>
+              <path d="m20.7 8-3.5 2"></path>
+              <path d="m9 22 3-8 3 8"></path>
+              <path d="M8 22h8"></path>
+              <path d="M12 2a4 4 0 0 0-4 4v4a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4Z"></path>
+            </svg>
+            <span>Cache</span>
+          </a>
+
+          <a href="<%= caboose.clues_path(type: 'view') %>" class="nav-item <%= 'active' if current_section == 'views' %>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <span>Views</span>
+          </a>
+
+          <a href="<%= caboose.clues_path(type: 'mail') %>" class="nav-item <%= 'active' if current_section == 'mail' %>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="20" height="16" x="2" y="4" rx="2"></rect>
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+            </svg>
+            <span>Mail</span>
+          </a>
+
+          <a href="<%= caboose.clues_path(type: 'http') %>" class="nav-item <%= 'active' if current_section == 'http' %>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M2 12h20"></path>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+            <span>HTTP</span>
+          </a>
+
+          <a href="<%= caboose.clues_path(type: 'exception') %>" class="nav-item <%= 'active' if current_section == 'exceptions' %>">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+              <path d="M12 9v4"></path>
+              <path d="M12 17h.01"></path>
+            </svg>
+            <span>Exceptions</span>
+          </a>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <a href="https://www.flippercloud.io?utm_source=caboose" target="_blank" rel="noopener" class="sidebar-ad">
+          <div class="sidebar-ad-inner">
+            <div class="sidebar-ad-logo">
+              <img src="/caboose-assets/images/flipper.png" alt="Flipper">
+            </div>
+            <div class="sidebar-ad-text">
+              <div class="sidebar-ad-title">Flipper</div>
+              Ship features safely.<br>Roll back instantly.
+            </div>
+          </div>
+        </a>
+        <%= button_to caboose.clear_data_path, method: :delete, class: "btn-clear", data: { confirm: "Clear all data? This cannot be undone." } do %>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18"></path>
+            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+          </svg>
+          <span>Clear Data</span>
+        <% end %>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <% if flash[:alert] %>
+        <div style="padding: 24px 32px 0;">
+          <div class="alert"><%= flash[:alert] %></div>
+        </div>
+      <% end %>
+      <%= yield %>
+    </main>
+  </div>
+  <script>
+    // Handle data-confirm on buttons/forms
+    document.addEventListener('click', function(e) {
+      const button = e.target.closest('[data-confirm]');
+      if (button && !confirm(button.dataset.confirm)) {
+        e.preventDefault();
+      }
+    });
+  </script>
+</body>
+</html>

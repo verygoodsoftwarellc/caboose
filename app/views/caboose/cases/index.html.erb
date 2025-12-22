@@ -1,0 +1,220 @@
+<style>
+  .filters {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .filter-select {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-card);
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    min-width: 100px;
+  }
+
+  .filter-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .filter-select option {
+    padding: 8px;
+  }
+
+  .action-name {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .pagination-link {
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 13px;
+  }
+
+  .pagination-link:hover {
+    background: var(--bg-body);
+  }
+
+  .pagination-info {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .pagination-side {
+    min-width: 100px;
+  }
+</style>
+
+<div class="page-header">
+  <h1 class="page-title"><%= page_title %></h1>
+  <div class="filters">
+    <%= form_tag(cases_path, method: :get, id: "filter-form") do %>
+      <%= hidden_field_tag :type, params[:type] %>
+      <% if current_section == "requests" || current_section == "all" %>
+        <%= select_tag :origin,
+          options_for_select([
+            ["All Origins", ""],
+            ["App", "app"],
+            ["Rails", "rails"]
+          ], current_origin),
+          class: "filter-select",
+          onchange: "this.form.submit()" %>
+        <%= select_tag :method,
+          options_for_select([
+            ["All Methods", ""],
+            ["GET", "GET"],
+            ["POST", "POST"],
+            ["PUT", "PUT"],
+            ["PATCH", "PATCH"],
+            ["DELETE", "DELETE"]
+          ], params[:method]),
+          class: "filter-select",
+          onchange: "this.form.submit()" %>
+      <% end %>
+      <% if current_section == "requests" %>
+        <%= select_tag :status,
+          options_for_select([
+            ["All Status", ""],
+            ["2xx Success", "2xx"],
+            ["3xx Redirect", "3xx"],
+            ["4xx Client Error", "4xx"],
+            ["5xx Server Error", "5xx"]
+          ], params[:status]),
+          class: "filter-select",
+          onchange: "this.form.submit()" %>
+      <% elsif current_section == "jobs" %>
+        <%= select_tag :status,
+          options_for_select([
+            ["All Status", ""],
+            ["Completed", "completed"],
+            ["Failed", "failed"]
+          ], params[:status]),
+          class: "filter-select",
+          onchange: "this.form.submit()" %>
+      <% elsif current_section == "all" %>
+        <%= select_tag :status,
+          options_for_select([
+            ["All Status", ""],
+            ["2xx Success", "2xx"],
+            ["3xx Redirect", "3xx"],
+            ["4xx Client Error", "4xx"],
+            ["5xx Server Error", "5xx"],
+            ["Completed (Jobs)", "completed"],
+            ["Failed (Jobs)", "failed"]
+          ], params[:status]),
+          class: "filter-select",
+          onchange: "this.form.submit()" %>
+      <% end %>
+      <%= text_field_tag :name, params[:name], placeholder: "Search...", class: "filter-select", style: "min-width: 200px;", onchange: "this.form.submit()" %>
+    <% end %>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="card">
+    <div class="card-body">
+      <% if @cases.blank? %>
+        <div class="empty-state">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v4"></path>
+            <path d="m6.8 14-3.5 2"></path>
+            <path d="m20.7 16-3.5-2"></path>
+            <path d="M6.8 10 3.3 8"></path>
+            <path d="m20.7 8-3.5 2"></path>
+            <circle cx="12" cy="12" r="4"></circle>
+          </svg>
+          <h3>No <%= page_title.downcase %> found</h3>
+          <p>Data will appear here as your application processes <%= page_title.downcase %>.</p>
+        </div>
+      <% else %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <% if current_section == "requests" || current_section == "all" %>
+                <th style="width: 70px;">Verb</th>
+              <% end %>
+              <th style="width: 80px; text-align: right;">Status</th>
+              <th style="width: 100px; text-align: right;">Duration</th>
+              <th style="width: 120px; text-align: right;">Happened</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @cases.each do |c| %>
+              <tr onclick="window.location='<%= case_path(c[:uuid]) %>'" style="cursor: pointer;">
+                <td class="path-cell">
+                  <span class="action-name path-text" title="<%= c[:name] %>"><%= c[:name] %></span>
+                  <% description = case c[:type]
+                                   when "request"
+                                     path = c[:content]["path"]
+                                   when "job"
+                                     c[:content]["queue_name"]
+                                   end %>
+                  <span class="path-subtext" title="<%= description %>">
+                    <%= description %>
+                  </span>
+                </td>
+                <% if current_section == "requests" || current_section == "all" %>
+                  <td>
+                    <% if c[:type] == "request" %>
+                      <% method = c[:content]["method"] || c[:name].to_s.split(" ").first || "GET" %>
+                      <span class="badge badge-<%= method.downcase %>"><%= method %></span>
+                    <% else %>
+                      <span class="badge badge-job">JOB</span>
+                    <% end %>
+                  </td>
+                <% end %>
+                <td style="text-align: right;">
+                  <% status_class = case c[:status].to_s
+                     when /^2/, "completed" then "success"
+                     when /^[45]/, "failed" then "error"
+                     when /^3/ then "warning"
+                     else "warning"
+                     end %>
+                  <span class="badge badge-status badge-<%= status_class %>"><%= c[:status] %></span>
+                </td>
+                <td class="duration" style="text-align: right;"><%= format_duration(c[:duration_ms]) %></td>
+                <td class="timestamp" style="text-align: right;"><%= time_ago_in_words(c[:started_at]) rescue c[:started_at]&.strftime("%H:%M:%S") %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+
+        <% if @total_count > 0 %>
+          <div class="pagination">
+            <div class="pagination-side">
+              <% if @has_prev %>
+                <%= link_to "Previous", cases_path(request.query_parameters.merge(offset: [@offset - 50, 0].max)), class: "pagination-link" %>
+              <% end %>
+            </div>
+            <div class="pagination-info">
+              <%= number_with_delimiter(@offset + 1) %> - <%= number_with_delimiter([@offset + @cases.size, @total_count].min) %> of <%= number_with_delimiter(@total_count) %>
+            </div>
+            <div class="pagination-side" style="text-align: right;">
+              <% if @has_next %>
+                <%= link_to "Next", cases_path(request.query_parameters.merge(offset: @offset + 50)), class: "pagination-link" %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

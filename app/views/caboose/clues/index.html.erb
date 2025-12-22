@@ -1,0 +1,163 @@
+<style>
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .pagination-link {
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 13px;
+  }
+
+  .pagination-link:hover {
+    background: var(--bg-body);
+  }
+
+  .pagination-info {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .pagination-side {
+    min-width: 100px;
+  }
+
+  .action-name {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .filters {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .filter-select {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-card);
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    min-width: 100px;
+  }
+
+  .filter-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+</style>
+
+<div class="page-header">
+  <h1 class="page-title"><%= page_title %></h1>
+  <% if current_section == "queries" %>
+    <div class="filters">
+      <%= form_tag(clues_path, method: :get, id: "filter-form") do %>
+        <%= hidden_field_tag :type, params[:type] %>
+        <%= text_field_tag :search, params[:search], placeholder: "Search SQL...", class: "filter-select", style: "min-width: 250px;", onchange: "this.form.submit()" %>
+      <% end %>
+    </div>
+  <% end %>
+</div>
+
+<div class="page-body">
+  <div class="card">
+    <div class="card-body">
+      <% if @clues.blank? %>
+        <div class="empty-state">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v4"></path>
+            <path d="m6.8 14-3.5 2"></path>
+            <path d="m20.7 16-3.5-2"></path>
+            <path d="M6.8 10 3.3 8"></path>
+            <path d="m20.7 8-3.5 2"></path>
+            <circle cx="12" cy="12" r="4"></circle>
+          </svg>
+          <h3>No <%= page_title.downcase %> found</h3>
+          <p>Data will appear here as your application generates <%= page_title.downcase %>.</p>
+        </div>
+      <% else %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <% unless current_section.in?(["queries", "views", "cache"]) %>
+                <th>Type</th>
+              <% end %>
+              <th>Details</th>
+              <th style="width: 200px;">Request</th>
+              <th style="width: 110px; text-align: right;">Duration</th>
+              <th style="width: 140px; text-align: right;">Happened</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @clues.each do |clue| %>
+              <tr onclick="window.location='<%= clue_path(clue[:id]) %>'" style="cursor: pointer;">
+                <% unless current_section.in?(["queries", "views", "cache"]) %>
+                  <td>
+                    <%
+                      badge_class = case clue[:type]
+                      when /sql|active_record/ then "sql"
+                      when /cache/ then "cache"
+                      when /render|view/ then "view"
+                      when /mail/ then "mail"
+                      when /http/ then "http"
+                      when /exception/ then "exception"
+                      else "other"
+                      end
+                      type_label = clue[:type].split(".").first
+                      type_label = type_label.sub(/^cache_/, "") if type_label.start_with?("cache_")
+                    %>
+                    <span class="badge badge-clue badge-<%= badge_class %>"><%= type_label %></span>
+                  </td>
+                <% end %>
+                <td class="path-cell">
+                  <code class="path-text action-name" title="<%= clue_summary(clue) %>">
+                    <%= clue_summary(clue) %>
+                  </code>
+                  <code class="path-subtext" title="<%= clue_description(clue) %>">
+                    <%= clue_description(clue) %>
+                  </code>
+                </td>
+                <td class="path-cell">
+                  <span class="path-text" title="<%= clue[:case_name] %>">
+                    <%= clue[:case_name] %>
+                  </span>
+                </td>
+                <td class="duration"><%= format_duration(clue[:duration_ms]) %></td>
+                <td class="timestamp"><%= time_ago_in_words(clue[:case_started_at]) rescue clue[:case_started_at]&.strftime("%H:%M:%S") %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+
+        <% if @total_count > 0 %>
+          <div class="pagination">
+            <div class="pagination-side">
+              <% if @has_prev %>
+                <%= link_to "Previous", clues_path(request.query_parameters.merge(offset: [@offset - 50, 0].max)), class: "pagination-link" %>
+              <% end %>
+            </div>
+            <div class="pagination-info">
+              <%= number_with_delimiter(@offset + 1) %> - <%= number_with_delimiter([@offset + @clues.size, @total_count].min) %> of <%= number_with_delimiter(@total_count) %>
+            </div>
+            <div class="pagination-side" style="text-align: right;">
+              <% if @has_next %>
+                <%= link_to "Next", clues_path(request.query_parameters.merge(offset: @offset + 50)), class: "pagination-link" %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>
