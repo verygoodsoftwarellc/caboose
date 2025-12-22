@@ -80,9 +80,9 @@ module Caboose
       # Configure specific instrumentations
       c.use "OpenTelemetry::Instrumentation::Rack",
         untraced_requests: ->(env) {
-          return true if env["PATH_INFO"]&.start_with?("/caboose")
-
           request = Rack::Request.new(env)
+          return true if request.path.start_with?("/caboose")
+
           configuration.ignore_request.call(request)
         }
       c.use "OpenTelemetry::Instrumentation::Net::HTTP"
