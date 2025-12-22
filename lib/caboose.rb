@@ -115,19 +115,29 @@ module Caboose
       attrs
     },
     "cache_read.active_support" => ->(payload) {
-      { "key" => payload[:key]&.to_s, "hit" => payload[:hit] }
+      store = payload[:store]
+      store_name = store.is_a?(String) ? store : store&.class&.name
+      { "key" => payload[:key]&.to_s, "hit" => payload[:hit], "store" => store_name }
     },
     "cache_write.active_support" => ->(payload) {
-      { "key" => payload[:key]&.to_s }
+      store = payload[:store]
+      store_name = store.is_a?(String) ? store : store&.class&.name
+      { "key" => payload[:key]&.to_s, "store" => store_name }
     },
     "cache_delete.active_support" => ->(payload) {
-      { "key" => payload[:key]&.to_s }
+      store = payload[:store]
+      store_name = store.is_a?(String) ? store : store&.class&.name
+      { "key" => payload[:key]&.to_s, "store" => store_name }
     },
     "cache_exist?.active_support" => ->(payload) {
-      { "key" => payload[:key]&.to_s, "exist" => payload[:exist] }
+      store = payload[:store]
+      store_name = store.is_a?(String) ? store : store&.class&.name
+      { "key" => payload[:key]&.to_s, "exist" => payload[:exist], "store" => store_name }
     },
     "cache_fetch_hit.active_support" => ->(payload) {
-      { "key" => payload[:key]&.to_s }
+      store = payload[:store]
+      store_name = store.is_a?(String) ? store : store&.class&.name
+      { "key" => payload[:key]&.to_s, "store" => store_name }
     },
     "deliver.action_mailer" => ->(payload) {
       attrs = {}

@@ -76,7 +76,8 @@
     when "cache"
       key = props["key"]&.to_s
       op = span[:name].to_s.sub(".active_support", "").sub("cache_", "")
-      { primary: key ? "#{op}: #{key.truncate(80)}" : span[:name], secondary: nil }
+      store = props["store"]&.to_s&.sub(/^ActiveSupport::Cache::/, "")
+      { primary: key ? "#{op}: #{key.truncate(80)}" : span[:name], secondary: store }
     when "views"
       identifier = props["identifier"] || props["code.filepath"]
       primary = identifier ? identifier.to_s.sub(/^.*\/app\/views\//, "") : span[:name]

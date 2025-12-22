@@ -184,11 +184,15 @@
     end
   end
 
-  root_label = if @span[:root_name]
+  root_label = if @span[:root_trace_id]
     if @span[:root_kind] == "consumer"
-      "Job: #{@span[:root_name].to_s.sub(/ (process|publish)$/, '')}"
+      # For jobs, show the job class name
+      @span[:root_name].to_s.sub(/ (process|publish)$/, '')
+    elsif @span[:root_controller] && @span[:root_action]
+      # For requests, show controller#action
+      "#{@span[:root_controller]}##{@span[:root_action]}"
     else
-      "Request: #{@span[:root_name]}"
+      @span[:root_name]
     end
   end
 %>

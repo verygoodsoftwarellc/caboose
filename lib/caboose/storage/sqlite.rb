@@ -171,9 +171,13 @@ module Caboose
           SELECT s.*,
                  root.trace_id as root_trace_id,
                  root.name as root_name,
-                 root.kind as root_kind
+                 root.kind as root_kind,
+                 root_controller.value as root_controller,
+                 root_action.value as root_action
           FROM caboose_spans s
           LEFT JOIN caboose_spans root ON root.trace_id = s.trace_id AND root.parent_span_id = '#{MISSING_PARENT_ID}'
+          LEFT JOIN caboose_properties root_controller ON root_controller.owner_type = 'Caboose::Span' AND root_controller.owner_id = root.id AND root_controller.key = 'code.namespace'
+          LEFT JOIN caboose_properties root_action ON root_action.owner_type = 'Caboose::Span' AND root_action.owner_id = root.id AND root_action.key = 'code.function'
           #{where_clause}
           ORDER BY s.created_at DESC
           LIMIT ? OFFSET ?
@@ -219,9 +223,13 @@ module Caboose
           SELECT s.*,
                  root.trace_id as root_trace_id,
                  root.name as root_name,
-                 root.kind as root_kind
+                 root.kind as root_kind,
+                 root_controller.value as root_controller,
+                 root_action.value as root_action
           FROM caboose_spans s
           LEFT JOIN caboose_spans root ON root.trace_id = s.trace_id AND root.parent_span_id = '#{MISSING_PARENT_ID}'
+          LEFT JOIN caboose_properties root_controller ON root_controller.owner_type = 'Caboose::Span' AND root_controller.owner_id = root.id AND root_controller.key = 'code.namespace'
+          LEFT JOIN caboose_properties root_action ON root_action.owner_type = 'Caboose::Span' AND root_action.owner_id = root.id AND root_action.key = 'code.function'
           WHERE s.id = ?
         SQL
 
@@ -252,10 +260,14 @@ module Caboose
                  root.trace_id as root_trace_id,
                  root.name as root_name,
                  root.kind as root_kind,
+                 root_controller.value as root_controller,
+                 root_action.value as root_action,
                  e.name as exception_name
           FROM caboose_events e
           JOIN caboose_spans s ON s.id = e.span_id
           LEFT JOIN caboose_spans root ON root.trace_id = s.trace_id AND root.parent_span_id = '#{MISSING_PARENT_ID}'
+          LEFT JOIN caboose_properties root_controller ON root_controller.owner_type = 'Caboose::Span' AND root_controller.owner_id = root.id AND root_controller.key = 'code.namespace'
+          LEFT JOIN caboose_properties root_action ON root_action.owner_type = 'Caboose::Span' AND root_action.owner_id = root.id AND root_action.key = 'code.function'
           #{where_clause}
           ORDER BY e.created_at DESC
           LIMIT ? OFFSET ?
@@ -701,6 +713,8 @@ module Caboose
         span[:root_trace_id] = row["root_trace_id"]
         span[:root_name] = row["root_name"]
         span[:root_kind] = row["root_kind"]
+        span[:root_controller] = parse_property_value(row["root_controller"], 0)
+        span[:root_action] = parse_property_value(row["root_action"], 0)
         span[:exception_name] = row["exception_name"] if row["exception_name"]
 
         span

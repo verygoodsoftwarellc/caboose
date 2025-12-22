@@ -424,23 +424,7 @@
            else "warning"
            end %>
         <span class="badge badge-status badge-<%= status_class %>"><%= http_status %></span>
-        <h1><%= @request[:name] %></h1>
-      </div>
-      <div class="detail-meta">
-        <div class="meta-item">
-          <span class="meta-label">Duration</span>
-          <span class="meta-value mono"><%= format_duration(total_duration_ms) %></span>
-        </div>
-        <div class="meta-item">
-          <span class="meta-label">Time</span>
-          <span class="meta-value"><%= started_at&.strftime("%b %d, %Y %H:%M:%S") %></span>
-        </div>
-        <% if controller && action %>
-          <div class="meta-item">
-            <span class="meta-label">Controller</span>
-            <span class="meta-value"><%= controller %>#<%= action %></span>
-          </div>
-        <% end %>
+        <h1><%= controller && action ? "#{controller}##{action}" : @request[:name] %></h1>
       </div>
     </div>
   </div>
@@ -454,8 +438,15 @@
     </div>
 
     <div id="tab-details" class="tab-content">
-      <% if root_props.present? && root_props.any? %>
         <div class="details-grid">
+          <div class="detail-item">
+            <span class="detail-label">Duration</span>
+            <span class="detail-value"><%= format_duration(total_duration_ms) %></span>
+          </div>
+          <div class="detail-item">
+            <span class="detail-label">Time</span>
+            <span class="detail-value"><%= started_at&.strftime("%b %d, %Y %H:%M:%S") %></span>
+          </div>
           <% root_props.each do |key, value| %>
             <% next if value.is_a?(Hash) || value.is_a?(Array) %>
             <div class="detail-item">
@@ -464,11 +455,6 @@
             </div>
           <% end %>
         </div>
-      <% else %>
-        <div class="empty-clues">
-          <p>No details recorded.</p>
-        </div>
-      <% end %>
     </div>
 
     <div id="tab-timeline" class="tab-content active">
