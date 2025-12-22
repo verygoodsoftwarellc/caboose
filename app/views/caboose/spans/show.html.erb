@@ -65,78 +65,131 @@
     text-decoration: underline;
   }
 
-  /* Details Grid */
-  .details-grid {
+  /* Details - Refined Layout */
+  .details-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .details-section {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .details-section:last-child {
+    border-bottom: none;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .section-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .section-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .section-icon.properties { background: #dbeafe; color: #2563eb; }
+  .section-icon.statement { background: #fef3c7; color: #d97706; }
+  .section-icon.trace { background: #f3e8ff; color: #9333ea; }
+  .section-icon.events { background: #fee2e2; color: #dc2626; }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+  }
+
+  .section-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 20px;
-    padding: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px 32px;
   }
 
   .detail-item {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
+  }
+
+  .detail-item.full-width {
+    grid-column: 1 / -1;
   }
 
   .detail-label {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 11px;
+    font-weight: 500;
     color: var(--text-muted);
+    letter-spacing: 0.02em;
   }
 
   .detail-value {
     font-size: 14px;
     color: var(--text-primary);
-    word-break: break-all;
+    word-break: break-word;
+    line-height: 1.4;
   }
 
   .detail-value.mono {
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
     font-size: 13px;
+  }
+
+  .detail-value.truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* SQL/Statement display */
   .statement-block {
-    margin: 0;
-    padding: 20px;
-    border-top: 1px solid var(--border);
+    background: #1e293b;
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
   }
 
   .statement-block pre {
     margin: 0;
     white-space: pre-wrap;
     word-break: break-all;
+    color: #e2e8f0;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.5;
   }
 
   /* Stacktrace section */
-  .stacktrace-section {
-    border-top: 1px solid var(--border);
-    padding: 20px;
-  }
-
-  .stacktrace-title {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--text-muted);
-    margin-bottom: 12px;
-  }
-
   .stacktrace-list {
     list-style: none;
     padding: 0;
     margin: 0;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 13px;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 12px;
+    background: var(--bg-body);
+    border-radius: 8px;
+    overflow: hidden;
   }
 
   .stacktrace-list li {
-    padding: 6px 0;
-    border-bottom: 1px solid var(--border-light);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
     color: var(--text-secondary);
   }
 
@@ -271,67 +324,118 @@
 
 <div class="page-body">
   <div class="card">
-    <% if props.present? && props.any? %>
-      <div class="details-grid">
-        <% props.each do |key, value| %>
-          <% next if key == "db.statement" && statement %>
-          <% next if key == "code.stacktrace" %>
-          <% next if value.is_a?(Hash) || value.is_a?(Array) %>
-          <div class="detail-item">
-            <span class="detail-label"><%= key.to_s.tr(".", " ").titleize %></span>
-            <span class="detail-value <%= 'mono' if key.include?('.') %>"><%= value %></span>
+    <%
+      # Filter properties for display
+      display_props = props.reject do |key, value|
+        key == "db.statement" || key == "code.stacktrace" || value.is_a?(Hash) || value.is_a?(Array)
+      end
+    %>
+    <div class="details-sections">
+      <% if display_props.any? %>
+        <!-- Properties Section -->
+        <div class="details-section">
+          <div class="section-header">
+            <div class="section-icon properties">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+            </div>
+            <span class="section-title">Properties</span>
           </div>
-        <% end %>
-      </div>
-    <% end %>
-
-    <% if statement.present? %>
-      <div class="statement-block">
-        <pre><code><%= statement %></code></pre>
-      </div>
-    <% end %>
-
-    <% if props["code.stacktrace"].present? %>
-      <div class="stacktrace-section">
-        <div class="stacktrace-title">Query Trace</div>
-        <ul class="stacktrace-list">
-          <% props["code.stacktrace"].split("\n").each do |line| %>
-            <li>
-              <% if line =~ /\A(.+):(\d+) in `(.+)'\z/ %>
-                <span class="file-path"><%= $1 %></span><span class="line-number">:<%= $2 %></span> in <span class="method-name">`<%= $3 %>'</span>
-              <% elsif line =~ /\A(.+):(\d+)\z/ %>
-                <span class="file-path"><%= $1 %></span><span class="line-number">:<%= $2 %></span>
-              <% else %>
-                <%= line %>
-              <% end %>
-            </li>
-          <% end %>
-        </ul>
-      </div>
-    <% end %>
-
-    <% if events.any? %>
-      <div class="events-section">
-        <div class="events-title">Events (<%= events.size %>)</div>
-        <% events.each do |event| %>
-          <div class="event-item">
-            <div class="event-name"><%= event[:name] %></div>
-            <% if event[:properties].present? %>
-              <div class="event-props">
-                <% event[:properties].each do |key, value| %>
-                  <div><strong><%= key %>:</strong> <%= value.to_s.truncate(500) %></div>
-                <% end %>
+          <div class="section-grid">
+            <% display_props.each do |key, value| %>
+              <div class="detail-item">
+                <span class="detail-label"><%= key.to_s.split(".").last.titleize %></span>
+                <span class="detail-value <%= 'mono' if key.include?('.') %>" title="<%= value %>"><%= value %></span>
               </div>
             <% end %>
           </div>
-        <% end %>
-      </div>
-    <% end %>
+        </div>
+      <% end %>
 
-    <% if props.blank? && statement.blank? && events.empty? %>
-      <div style="padding: 40px; text-align: center; color: var(--text-muted);">
-        No additional details available for this span.
-      </div>
-    <% end %>
+      <% if statement.present? %>
+        <!-- Statement Section -->
+        <div class="details-section">
+          <div class="section-header">
+            <div class="section-icon statement">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+            </div>
+            <span class="section-title">Statement</span>
+          </div>
+          <div class="statement-block">
+            <pre><code><%= statement %></code></pre>
+          </div>
+        </div>
+      <% end %>
+
+      <% if props["code.stacktrace"].present? %>
+        <!-- Trace Section -->
+        <div class="details-section">
+          <div class="section-header">
+            <div class="section-icon trace">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+              </svg>
+            </div>
+            <span class="section-title">Source Trace</span>
+          </div>
+          <ul class="stacktrace-list">
+            <% props["code.stacktrace"].split("\n").each do |line| %>
+              <li>
+                <% if line =~ /\A(.+):(\d+) in `(.+)'\z/ %>
+                  <span class="file-path"><%= $1 %></span><span class="line-number">:<%= $2 %></span> in <span class="method-name">`<%= $3 %>'</span>
+                <% elsif line =~ /\A(.+):(\d+)\z/ %>
+                  <span class="file-path"><%= $1 %></span><span class="line-number">:<%= $2 %></span>
+                <% else %>
+                  <%= line %>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+
+      <% if events.any? %>
+        <!-- Events Section -->
+        <div class="details-section">
+          <div class="section-header">
+            <div class="section-icon events">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+              </svg>
+            </div>
+            <span class="section-title">Events (<%= events.size %>)</span>
+          </div>
+          <% events.each do |event| %>
+            <div class="event-item">
+              <div class="event-name"><%= event[:name] %></div>
+              <% if event[:properties].present? %>
+                <div class="event-props">
+                  <% event[:properties].each do |key, value| %>
+                    <div><strong><%= key %>:</strong> <%= value.to_s.truncate(500) %></div>
+                  <% end %>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+
+      <% if display_props.blank? && statement.blank? && props["code.stacktrace"].blank? && events.empty? %>
+        <div class="details-section">
+          <div style="padding: 20px; text-align: center; color: var(--text-muted);">
+            No additional details available for this span.
+          </div>
+        </div>
+      <% end %>
+    </div>
   </div>
 </div>

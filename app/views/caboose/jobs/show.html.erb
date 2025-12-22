@@ -110,31 +110,107 @@
     display: block;
   }
 
-  /* Details Grid */
-  .details-grid {
+  /* Details - Refined Layout */
+  .details-sections {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .details-section {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .details-section:last-child {
+    border-bottom: none;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .section-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .section-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .section-icon.job { background: #cffafe; color: #0891b2; }
+  .section-icon.queue { background: #f3e8ff; color: #9333ea; }
+  .section-icon.other { background: #f1f5f9; color: #64748b; }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+  }
+
+  .section-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px 32px;
   }
 
   .detail-item {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
+  }
+
+  .detail-item.full-width {
+    grid-column: 1 / -1;
   }
 
   .detail-label {
-    font-size: 12px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 11px;
+    font-weight: 500;
     color: var(--text-muted);
+    letter-spacing: 0.02em;
   }
 
   .detail-value {
     font-size: 14px;
     color: var(--text-primary);
-    word-break: break-all;
+    word-break: break-word;
+    line-height: 1.4;
+  }
+
+  .detail-value.mono {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 13px;
+  }
+
+  .detail-value.prominent {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  }
+
+  .detail-value.truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .detail-value.secondary {
+    color: var(--text-secondary);
+    font-size: 13px;
   }
 
   /* Waterfall */
@@ -477,21 +553,104 @@
     </div>
 
     <div id="tab-details" class="tab-content">
-      <% if root_props.present? && root_props.any? %>
-        <div class="details-grid">
-          <% root_props.each do |key, value| %>
-            <% next if value.is_a?(Hash) || value.is_a?(Array) %>
-            <div class="detail-item">
-              <span class="detail-label"><%= key.to_s.tr(".", " ").titleize %></span>
-              <span class="detail-value"><%= value %></span>
+      <%
+        # Properties to exclude from "other" section (already shown elsewhere)
+        shown_keys = %w[code.namespace messaging.destination messaging.message.id messaging.message_id]
+        other_props = root_props.reject { |k, v| shown_keys.include?(k) || v.is_a?(Hash) || v.is_a?(Array) }
+      %>
+      <div class="details-sections">
+        <!-- Job Section -->
+        <div class="details-section">
+          <div class="section-header">
+            <div class="section-icon job">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+              </svg>
             </div>
-          <% end %>
+            <span class="section-title">Job</span>
+          </div>
+          <div class="section-grid">
+            <div class="detail-item">
+              <span class="detail-label">Duration</span>
+              <span class="detail-value prominent"><%= format_duration(total_duration_ms) %></span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Time</span>
+              <span class="detail-value"><%= started_at&.strftime("%b %d, %Y at %H:%M:%S") %></span>
+            </div>
+            <% if job_class %>
+              <div class="detail-item">
+                <span class="detail-label">Job Class</span>
+                <span class="detail-value mono"><%= job_class %></span>
+              </div>
+            <% end %>
+            <% if job_id %>
+              <div class="detail-item full-width">
+                <span class="detail-label">Job ID</span>
+                <span class="detail-value mono secondary"><%= job_id %></span>
+              </div>
+            <% end %>
+          </div>
         </div>
-      <% else %>
-        <div class="empty-clues">
-          <p>No details recorded.</p>
-        </div>
-      <% end %>
+
+        <!-- Queue Section -->
+        <% if queue_name %>
+          <div class="details-section">
+            <div class="section-header">
+              <div class="section-icon queue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="8" y1="6" x2="21" y2="6"></line>
+                  <line x1="8" y1="12" x2="21" y2="12"></line>
+                  <line x1="8" y1="18" x2="21" y2="18"></line>
+                  <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                  <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                  <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                </svg>
+              </div>
+              <span class="section-title">Queue</span>
+            </div>
+            <div class="section-grid">
+              <div class="detail-item">
+                <span class="detail-label">Queue Name</span>
+                <span class="detail-value mono"><%= queue_name %></span>
+              </div>
+            </div>
+          </div>
+        <% end %>
+
+        <!-- Other Properties Section -->
+        <% if other_props.any? %>
+          <div class="details-section">
+            <div class="section-header">
+              <div class="section-icon other">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="1"></circle>
+                  <circle cx="19" cy="12" r="1"></circle>
+                  <circle cx="5" cy="12" r="1"></circle>
+                </svg>
+              </div>
+              <span class="section-title">Additional Properties</span>
+            </div>
+            <div class="section-grid">
+              <% other_props.each do |key, value| %>
+                <div class="detail-item">
+                  <span class="detail-label"><%= key.to_s.split(".").last.titleize %></span>
+                  <span class="detail-value mono truncate" title="<%= value %>"><%= value %></span>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
+        <% if root_props.blank? %>
+          <div class="details-section">
+            <div class="empty-clues" style="padding: 20px;">
+              <p>No details recorded.</p>
+            </div>
+          </div>
+        <% end %>
+      </div>
     </div>
 
     <div id="tab-timeline" class="tab-content active">
