@@ -164,6 +164,35 @@
     transition: background 0.1s ease;
   }
 
+  #sql-tooltip {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 16px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: 'IBM Plex Mono', monospace;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-width: 600px;
+    max-height: 200px;
+    overflow: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s ease, visibility 0.15s ease;
+  }
+
+  #sql-tooltip.visible {
+    opacity: 1;
+    visibility: visible;
+  }
+
   .waterfall-row:hover .waterfall-bar-container {
     background: #cbd5e1;
   }
@@ -514,12 +543,14 @@
 
                 # Generate display name
                 props = span[:properties] || {}
+                sql_statement = nil
                 display_name = if span[:name] == "instantiation.active_record"
                   # Show "User Instantiation (23)" format
                   class_name = props["class_name"] || "Record"
                   count = props["record_count"]
                   count ? "#{class_name} Instantiation (#{count})" : "#{class_name} Instantiation"
                 elsif category == "sql"
+                  sql_statement = props["db.statement"]
                   props["name"] || span[:name]
                 elsif category == "cache"
                   key = props["key"]
@@ -544,10 +575,10 @@
                   span[:name]
                 end
               %>
-              <div class="waterfall-row" onclick="toggleSpan(<%= index %>)" id="row-<%= index %>" data-span-type="<%= category %>">
+              <div class="waterfall-row" onclick="toggleSpan(<%= index %>)" id="row-<%= index %>" data-span-type="<%= category %>" <% if sql_statement.present? %>data-sql="<%= sql_statement.truncate(500).gsub('"', "'") %>"<% end %>>
                 <div class="waterfall-bar-container">
                   <div class="waterfall-bar <%= category %>" style="left: <%= left %>%; width: <%= width %>%;"></div>
-                  <span class="waterfall-label" title="<%= display_name %>"><%= display_name %></span>
+                  <span class="waterfall-label"><%= display_name %></span>
                   <span class="waterfall-duration"><%= format_duration(span[:duration_ms]) %></span>
                 </div>
               </div>
@@ -743,4 +774,29 @@
       }
     });
   }
+
+  // SQL tooltip
+  document.addEventListener('DOMContentLoaded', () => {
+    const sqlTooltip = document.getElementById('sql-tooltip');
+    let tooltipTimeout;
+
+    document.querySelectorAll('.waterfall-row[data-sql]').forEach(row => {
+      row.addEventListener('mouseenter', () => {
+        const sql = row.getAttribute('data-sql');
+        if (sql && !row.classList.contains('selected')) {
+          tooltipTimeout = setTimeout(() => {
+            sqlTooltip.textContent = sql;
+            sqlTooltip.classList.add('visible');
+          }, 200);
+        }
+      });
+
+      row.addEventListener('mouseleave', () => {
+        clearTimeout(tooltipTimeout);
+        sqlTooltip.classList.remove('visible');
+      });
+    });
+  });
 </script>
+
+<div id="sql-tooltip"></div>
