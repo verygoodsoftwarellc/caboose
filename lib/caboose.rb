@@ -6,6 +6,7 @@ require_relative "caboose/configuration"
 require "opentelemetry/sdk"
 
 require_relative "caboose/sqlite_exporter"
+require_relative "caboose/source_location"
 
 module Caboose
   class Error < StandardError; end
@@ -59,6 +60,9 @@ module Caboose
   def configure_opentelemetry
     return if @otel_configured
 
+    # Suppress noisy OTel INFO logs
+    OpenTelemetry.logger = Logger.new($stdout, level: Logger::WARN)
+
     service_name = if defined?(Rails) && Rails.application
       Rails.application.class.module_parent_name.underscore rescue "rails_app"
     else
@@ -106,6 +110,8 @@ module Caboose
       attrs["db.statement"] = payload[:sql] if payload[:sql]
       attrs["name"] = payload[:name] if payload[:name]
       attrs["db.name"] = payload[:connection]&.pool&.db_config&.name rescue nil
+      # Capture source location (app code that triggered this query)
+      SourceLocation.add_to_attributes(attrs)
       attrs
     },
     "instantiation.active_record" => ->(payload) {
@@ -160,6 +166,88 @@ module Caboose
       OpenTelemetry::Instrumentation::ActiveSupport.subscribe(tracer, pattern, transformer)
     rescue => e
       # Ignore errors for patterns that don't exist
+    end
+
+    # Auto-subscribe to custom patterns (default: "app.*")
+    # This lets users just do: ActiveSupport::Notifications.instrument("app.whatever") { }
+    subscribe_to_custom_patterns
+  end
+
+  def subscribe_to_custom_patterns
+    configuration.subscribe_patterns.each do |prefix|
+      # Subscribe to all notifications starting with this prefix
+      pattern = /\A#{Regexp.escape(prefix)}/
+      default_transformer = ->(payload) {
+        attrs = payload.transform_keys(&:to_s).select { |_, v|
+          v.is_a?(String) || v.is_a?(Numeric) || v.is_a?(TrueClass) || v.is_a?(FalseClass)
+        }
+        SourceLocation.add_to_attributes(attrs)
+        attrs
+      }
+      OpenTelemetry::Instrumentation::ActiveSupport.subscribe(tracer, pattern, default_transformer)
+    end
+  end
+
+  # Subscribe to any ActiveSupport::Notification and create spans for it
+  #
+  # @param pattern [String, Regexp] The notification pattern to subscribe to
+  # @param transformer [Proc, nil] Optional proc to transform payload into span attributes
+  #   If nil, all payload keys become span attributes
+  #
+  # @example Subscribe to a custom notification
+  #   Caboose.subscribe("my_service.call")
+  #
+  # @example Subscribe with custom attribute transformer
+  #   Caboose.subscribe("stripe.charge") do |payload|
+  #     { "charge_id" => payload[:id], "amount" => payload[:amount] }
+  #   end
+  #
+  def subscribe(pattern, &transformer)
+    transformer ||= ->(payload) {
+      # Default: convert all payload keys to string attributes
+      payload.transform_keys(&:to_s).transform_values(&:to_s)
+    }
+    OpenTelemetry::Instrumentation::ActiveSupport.subscribe(tracer, pattern, transformer)
+  end
+
+  # Instrument a block of code, creating a span that shows up in Caboose
+  #
+  # NOTE: This method only works when Caboose is loaded (typically development).
+  # For instrumentation that works in all environments, use ActiveSupport::Notifications
+  # directly and subscribe with Caboose.subscribe in your initializer.
+  #
+  # @param name [String] The name of the span (e.g., "my_service.call", "external_api.fetch")
+  # @param attributes [Hash] Optional attributes to add to the span
+  # @yield The block to instrument
+  # @return The return value of the block
+  #
+  # @example Basic usage (dev only)
+  #   Caboose.instrument("geocoding.lookup") do
+  #     geocoder.lookup(address)
+  #   end
+  #
+  # @example For all environments, use ActiveSupport::Notifications instead:
+  #   # In your app code (works everywhere):
+  #   ActiveSupport::Notifications.instrument("myapp.geocoding", address: addr) do
+  #     geocoder.lookup(addr)
+  #   end
+  #
+  #   # In config/initializers/caboose.rb (only loaded in dev):
+  #   Caboose.subscribe("myapp.geocoding")
+  #
+  def instrument(name, attributes = {}, &block)
+    return yield unless enabled?
+
+    # Add source location
+    location = SourceLocation.find
+    if location
+      attributes["code.filepath"] = location[:filepath]
+      attributes["code.lineno"] = location[:lineno]
+      attributes["code.function"] = location[:function] if location[:function]
+    end
+
+    tracer.in_span(name, attributes: attributes, kind: :internal) do |span|
+      yield span
     end
   end
 

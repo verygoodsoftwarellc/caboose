@@ -111,6 +111,51 @@
     word-break: break-all;
   }
 
+  /* Stacktrace section */
+  .stacktrace-section {
+    border-top: 1px solid var(--border);
+    padding: 20px;
+  }
+
+  .stacktrace-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  .stacktrace-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+  }
+
+  .stacktrace-list li {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-secondary);
+  }
+
+  .stacktrace-list li:last-child {
+    border-bottom: none;
+  }
+
+  .stacktrace-list .file-path {
+    color: var(--accent);
+  }
+
+  .stacktrace-list .line-number {
+    color: var(--text-muted);
+  }
+
+  .stacktrace-list .method-name {
+    color: var(--text-primary);
+  }
+
   /* Events section */
   .events-section {
     border-top: 1px solid var(--border);
@@ -230,6 +275,7 @@
       <div class="details-grid">
         <% props.each do |key, value| %>
           <% next if key == "db.statement" && statement %>
+          <% next if key == "code.stacktrace" %>
           <% next if value.is_a?(Hash) || value.is_a?(Array) %>
           <div class="detail-item">
             <span class="detail-label"><%= key.to_s.tr(".", " ").titleize %></span>
@@ -242,6 +288,25 @@
     <% if statement.present? %>
       <div class="statement-block">
         <pre><code><%= statement %></code></pre>
+      </div>
+    <% end %>
+
+    <% if props["code.stacktrace"].present? %>
+      <div class="stacktrace-section">
+        <div class="stacktrace-title">Query Trace</div>
+        <ul class="stacktrace-list">
+          <% props["code.stacktrace"].split("\n").each do |line| %>
+            <li>
+              <% if line =~ /\A(.+):(\d+) in `(.+)'\z/ %>
+                <span class="file-path"><%= $1 %></span><span class="line-number">:<%= $2 %></span> in <span class="method-name">`<%= $3 %>'</span>
+              <% elsif line =~ /\A(.+):(\d+)\z/ %>
+                <span class="file-path"><%= $1 %></span><span class="line-number">:<%= $2 %></span>
+              <% else %>
+                <%= line %>
+              <% end %>
+            </li>
+          <% end %>
+        </ul>
       </div>
     <% end %>
 

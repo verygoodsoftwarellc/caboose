@@ -8,12 +8,19 @@ module Caboose
     attr_accessor :ignore_request
     attr_writer :database_path
 
+    # Default patterns to auto-subscribe to for custom instrumentation
+    # Use "app." prefix in your ActiveSupport::Notifications.instrument calls
+    DEFAULT_SUBSCRIBE_PATTERNS = %w[app.].freeze
+
+    attr_accessor :subscribe_patterns
+
     def initialize
       @enabled = true
       @retention_hours = 24
       @max_spans = 500
       @database_path = nil
       @ignore_request = ->(request) { false }
+      @subscribe_patterns = DEFAULT_SUBSCRIBE_PATTERNS.dup
     end
 
     def database_path

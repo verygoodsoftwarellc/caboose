@@ -6,14 +6,7 @@ module Caboose
       desc "Install Caboose"
 
       def create_initializer
-        initializer_path = Rails.root.join("config", "initializers", "caboose.rb")
-
-        if File.exist?(initializer_path)
-          say_status :skip, "config/initializers/caboose.rb already exists", :yellow
-        else
-          create_file initializer_path, initializer_content
-          say_status :create, "config/initializers/caboose.rb", :green
-        end
+        create_file "config/initializers/caboose.rb", initializer_content
       end
 
       def add_gitignore_entry
@@ -37,25 +30,47 @@ module Caboose
         <<~RUBY
           # frozen_string_literal: true
 
-          Caboose.configure do |config|
-            # Enable or disable Caboose (default: true)
-            # config.enabled = true
+          # Only configure if Caboose is loaded (typically development only)
+          if defined?(Caboose)
+            Caboose.configure do |config|
+              # Enable or disable Caboose (default: true)
+              # config.enabled = true
 
-            # How long to keep spans in hours (default: 24)
-            # config.retention_hours = 24
+              # How long to keep spans in hours (default: 24)
+              # config.retention_hours = 24
 
-            # Maximum number of spans to store (default: 500)
-            # Roughly 50-100 requests depending on spans per request
-            # config.max_spans = 500
+              # Maximum number of spans to store (default: 500)
+              # Roughly 50-100 requests depending on spans per request
+              # config.max_spans = 500
 
-            # Path to the SQLite database (default: db/caboose.sqlite3)
-            # config.database_path = Rails.root.join("db", "caboose.sqlite3").to_s
+              # Path to the SQLite database (default: db/caboose.sqlite3)
+              # config.database_path = Rails.root.join("db", "caboose.sqlite3").to_s
 
-            # Ignore specific requests (receives a Rack::Request, return true to ignore)
-            # config.ignore_request = ->(request) {
-            #   request.path.start_with?("/health")
-            # }
+              # Ignore specific requests (receives a Rack::Request, return true to ignore)
+              # config.ignore_request = ->(request) {
+              #   request.path.start_with?("/health")
+              # }
+
+              # Subscribe to custom notification prefixes (default: ["app."])
+              # config.subscribe_patterns << "mycompany."
+            end
           end
+
+          # =============================================================================
+          # Custom Instrumentation
+          # =============================================================================
+          #
+          # Just use ActiveSupport::Notifications.instrument with an "app." prefix
+          # anywhere in your code. It works in all environments - in production it's
+          # a no-op, in development Caboose automatically captures it.
+          #
+          #   ActiveSupport::Notifications.instrument("app.geocoding", address: address) do
+          #     geocoder.lookup(address)
+          #   end
+          #
+          #   ActiveSupport::Notifications.instrument("app.stripe.charge", amount: 1000) do
+          #     Stripe::Charge.create(...)
+          #   end
         RUBY
       end
     end

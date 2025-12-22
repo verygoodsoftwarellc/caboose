@@ -66,15 +66,19 @@
       stmt = props["db.statement"]&.to_s
       name = props["name"]&.to_s # e.g., "User Load"
       db_name = props["db.name"]&.to_s # e.g., "primary", "analytics"
-      # Build secondary: "User Load" or "User Load · primary" if db name present
-      secondary = [name.presence, db_name.presence].compact.join(" · ").presence
-      # Show SQL as primary, name/db as secondary. Fall back to name if no SQL.
+      # Source location: "app/models/user.rb:42"
+      source_loc = if props["code.filepath"] && props["code.lineno"]
+        "#{props["code.filepath"]}:#{props["code.lineno"]}"
+      end
+      # Build secondary: "User Load · primary · app/models/user.rb:42"
+      secondary = [name.presence, db_name.presence, source_loc].compact.join(" · ").presence
+      # Show SQL as primary, name/db/location as secondary. Fall back to name if no SQL.
       if stmt.present?
         { primary: stmt, secondary: secondary }
       elsif name.present?
-        { primary: name, secondary: db_name.presence }
+        { primary: name, secondary: [db_name.presence, source_loc].compact.join(" · ").presence }
       else
-        { primary: span[:name], secondary: db_name.presence }
+        { primary: span[:name], secondary: [db_name.presence, source_loc].compact.join(" · ").presence }
       end
     when "cache"
       key = props["key"]&.to_s
