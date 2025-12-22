@@ -18,7 +18,7 @@ Then execute:
 bundle install
 ```
 
-Then install:
+If you want to tweak config, then run the install generator to create an initializer:
 
 ```bash
 rails generate caboose:install
