@@ -376,8 +376,6 @@
     case name
     when /sql\.active_record/, /mysql/, /postgres/, /sqlite/
       "sql"
-    when /instantiation\.active_record/
-      "sql"  # Group with SQL since it's database-related
     when /cache/
       "cache"
     when /render/, /view/
