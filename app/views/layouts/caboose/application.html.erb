@@ -601,82 +601,13 @@
 
       <nav class="sidebar-nav">
         <div class="nav-section">
-          <div class="nav-section-title">Cases</div>
+          <div class="nav-section-title">Traces</div>
 
-          <a href="<%= caboose.cases_path(type: 'request') %>" class="nav-item <%= 'active' if current_section == 'requests' || current_section == 'all' %>">
+          <a href="<%= caboose.requests_path %>" class="nav-item <%= 'active' if current_section == 'requests' %>">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
             </svg>
             <span>Requests</span>
-          </a>
-
-          <a href="<%= caboose.cases_path(type: 'job') %>" class="nav-item <%= 'active' if current_section == 'jobs' %>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect width="20" height="14" x="2" y="7" rx="2" ry="2"></rect>
-              <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-            </svg>
-            <span>Jobs</span>
-          </a>
-        </div>
-
-        <div class="nav-section">
-          <div class="nav-section-title">Clues</div>
-
-          <a href="<%= caboose.clues_path(type: 'sql') %>" class="nav-item <%= 'active' if current_section == 'queries' %>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-              <path d="M3 5V19A9 3 0 0 0 21 19V5"></path>
-              <path d="M3 12A9 3 0 0 0 21 12"></path>
-            </svg>
-            <span>Queries</span>
-          </a>
-
-          <a href="<%= caboose.clues_path(type: 'cache') %>" class="nav-item <%= 'active' if current_section == 'cache' %>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2v4"></path>
-              <path d="m6.8 14-3.5 2"></path>
-              <path d="m20.7 16-3.5-2"></path>
-              <path d="M6.8 10 3.3 8"></path>
-              <path d="m20.7 8-3.5 2"></path>
-              <path d="m9 22 3-8 3 8"></path>
-              <path d="M8 22h8"></path>
-              <path d="M12 2a4 4 0 0 0-4 4v4a4 4 0 0 0 8 0V6a4 4 0 0 0-4-4Z"></path>
-            </svg>
-            <span>Cache</span>
-          </a>
-
-          <a href="<%= caboose.clues_path(type: 'view') %>" class="nav-item <%= 'active' if current_section == 'views' %>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-              <polyline points="14 2 14 8 20 8"></polyline>
-            </svg>
-            <span>Views</span>
-          </a>
-
-          <a href="<%= caboose.clues_path(type: 'mail') %>" class="nav-item <%= 'active' if current_section == 'mail' %>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect width="20" height="16" x="2" y="4" rx="2"></rect>
-              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
-            </svg>
-            <span>Mail</span>
-          </a>
-
-          <a href="<%= caboose.clues_path(type: 'http') %>" class="nav-item <%= 'active' if current_section == 'http' %>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <path d="M2 12h20"></path>
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-            </svg>
-            <span>HTTP</span>
-          </a>
-
-          <a href="<%= caboose.clues_path(type: 'exception') %>" class="nav-item <%= 'active' if current_section == 'exceptions' %>">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
-              <path d="M12 9v4"></path>
-              <path d="M12 17h.01"></path>
-            </svg>
-            <span>Exceptions</span>
           </a>
         </div>
       </nav>

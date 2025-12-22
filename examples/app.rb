@@ -152,7 +152,7 @@ class HomeController < ActionController::Base
   def enqueue_job
     user_id = rand(1..100)
     DataSyncJob.perform_later(user_id)
-    redirect_to root_path, notice: "DataSyncJob enqueued for user #{user_id}"
+    redirect_to "/", notice: "DataSyncJob enqueued for user #{user_id}"
   end
 end
 

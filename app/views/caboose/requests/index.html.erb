@@ -1,0 +1,181 @@
+<style>
+  .filters {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .filter-select {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-card);
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    min-width: 100px;
+  }
+
+  .filter-select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .filter-select option {
+    padding: 8px;
+  }
+
+  .action-name {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .pagination-link {
+    padding: 8px 16px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-primary);
+    text-decoration: none;
+    font-size: 13px;
+  }
+
+  .pagination-link:hover {
+    background: var(--bg-body);
+  }
+
+  .pagination-info {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .pagination-side {
+    min-width: 100px;
+  }
+</style>
+
+<div class="page-header">
+  <h1 class="page-title"><%= page_title %></h1>
+  <div class="filters">
+    <%= form_tag(requests_path, method: :get, id: "filter-form") do %>
+      <%= select_tag :origin,
+        options_for_select([
+          ["All Origins", ""],
+          ["App", "app"],
+          ["Rails", "rails"]
+        ], current_origin),
+        class: "filter-select",
+        onchange: "this.form.submit()" %>
+      <%= select_tag :method,
+        options_for_select([
+          ["All Methods", ""],
+          ["GET", "GET"],
+          ["POST", "POST"],
+          ["PUT", "PUT"],
+          ["PATCH", "PATCH"],
+          ["DELETE", "DELETE"]
+        ], params[:method]),
+        class: "filter-select",
+        onchange: "this.form.submit()" %>
+      <%= select_tag :status,
+        options_for_select([
+          ["All Status", ""],
+          ["2xx Success", "2xx"],
+          ["3xx Redirect", "3xx"],
+          ["4xx Client Error", "4xx"],
+          ["5xx Server Error", "5xx"]
+        ], params[:status]),
+        class: "filter-select",
+        onchange: "this.form.submit()" %>
+      <%= text_field_tag :name, params[:name], placeholder: "Search...", class: "filter-select", style: "min-width: 200px;", onchange: "this.form.submit()" %>
+    <% end %>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="card">
+    <div class="card-body">
+      <% if @requests.blank? %>
+        <div class="empty-state">
+          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2v4"></path>
+            <path d="m6.8 14-3.5 2"></path>
+            <path d="m20.7 16-3.5-2"></path>
+            <path d="M6.8 10 3.3 8"></path>
+            <path d="m20.7 8-3.5 2"></path>
+            <circle cx="12" cy="12" r="4"></circle>
+          </svg>
+          <h3>No requests found</h3>
+          <p>Data will appear here as your application processes requests.</p>
+        </div>
+      <% else %>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th style="width: 70px;">Verb</th>
+              <th style="width: 80px; text-align: right;">Status</th>
+              <th style="width: 100px; text-align: right;">Duration</th>
+              <th style="width: 120px; text-align: right;">Happened</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @requests.each do |req| %>
+              <% started_at = Time.at(req[:start_timestamp] / 1_000_000_000.0) rescue nil %>
+              <tr onclick="window.location='<%= request_path(req[:trace_id]) %>'" style="cursor: pointer;">
+                <td class="path-cell">
+                  <span class="action-name path-text" title="<%= req[:name] %>"><%= req[:name] %></span>
+                  <span class="path-subtext" title="<%= req[:http_target] %>">
+                    <%= req[:http_target] %>
+                  </span>
+                </td>
+                <td>
+                  <% method = req[:http_method] || "GET" %>
+                  <span class="badge badge-<%= method.downcase %>"><%= method %></span>
+                </td>
+                <td style="text-align: right;">
+                  <% status = req[:http_status] %>
+                  <% status_class = case status.to_s
+                     when /^2/ then "success"
+                     when /^[45]/ then "error"
+                     when /^3/ then "warning"
+                     else "warning"
+                     end %>
+                  <span class="badge badge-status badge-<%= status_class %>"><%= status %></span>
+                </td>
+                <td class="duration" style="text-align: right;"><%= format_duration(req[:duration_ms]) %></td>
+                <td class="timestamp" style="text-align: right;"><%= started_at ? time_ago_in_words(started_at) : "-" %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+
+        <% if @total_count > 0 %>
+          <div class="pagination">
+            <div class="pagination-side">
+              <% if @has_prev %>
+                <%= link_to "Previous", requests_path(request.query_parameters.merge(offset: [@offset - 50, 0].max)), class: "pagination-link" %>
+              <% end %>
+            </div>
+            <div class="pagination-info">
+              <%= number_with_delimiter(@offset + 1) %> - <%= number_with_delimiter([@offset + @requests.size, @total_count].min) %> of <%= number_with_delimiter(@total_count) %>
+            </div>
+            <div class="pagination-side" style="text-align: right;">
+              <% if @has_next %>
+                <%= link_to "Next", requests_path(request.query_parameters.merge(offset: @offset + 50)), class: "pagination-link" %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+  </div>
+</div>

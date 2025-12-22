@@ -1,0 +1,758 @@
+<style>
+  .code-path {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    color: var(--text-secondary);
+    background: var(--bg-body);
+    padding: 2px 8px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+
+  .action-name {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .detail-header-left {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .detail-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .detail-title h1 {
+    font-size: 18px;
+    font-weight: 600;
+    word-break: break-all;
+    color: var(--text-primary);
+  }
+
+  .detail-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .meta-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .meta-value {
+    font-size: 14px;
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+
+  .meta-value.mono {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+
+  .tab {
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+  }
+
+  .tab:hover {
+    color: var(--text-primary);
+    text-decoration: none;
+  }
+
+  .tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab-content {
+    display: none;
+    padding: 20px;
+  }
+
+  .tab-content.active {
+    display: block;
+  }
+
+  /* Details Grid */
+  .details-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+  }
+
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .detail-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+
+  .detail-value {
+    font-size: 14px;
+    color: var(--text-primary);
+    word-break: break-all;
+  }
+
+  /* Waterfall */
+  .waterfall {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .waterfall-header {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  .waterfall-row {
+    padding: 0 12px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: background 0.1s ease;
+  }
+
+  .waterfall-row:hover .waterfall-bar-container {
+    background: #cbd5e1;
+  }
+
+  .waterfall-row.selected {
+    /* No background change on selection */
+  }
+
+  .waterfall-bar-container {
+    height: 31px;
+    background: var(--border);
+    border-radius: 4px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .waterfall-label {
+    position: relative;
+    z-index: 1;
+    font-size: 12px;
+    color: var(--text-primary);
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 2px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 3px;
+    margin-left: 4px;
+  }
+
+  .waterfall-bar {
+    position: absolute;
+    height: 100%;
+    border-radius: 4px;
+    min-width: 3px;
+    opacity: 0.9;
+    transition: opacity 0.15s ease;
+  }
+
+  .waterfall-bar:hover {
+    opacity: 1;
+  }
+
+  .waterfall-bar.sql { background: #3b82f6; }
+  .waterfall-bar.cache { background: #22c55e; }
+  .waterfall-bar.view { background: #f59e0b; }
+  .waterfall-bar.http { background: #a855f7; }
+  .waterfall-bar.mailer { background: #ec4899; }
+  .waterfall-bar.job { background: #06b6d4; }
+  .waterfall-bar.controller { background: #8b5cf6; }
+  .waterfall-bar.other { background: #bec9d7; }
+
+  .waterfall-duration {
+    position: relative;
+    z-index: 1;
+    font-size: 12px;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    font-family: 'IBM Plex Mono', monospace;
+    background: rgba(255, 255, 255, 0.4);
+    border-radius: 3px;
+    padding: 2px 8px;
+    margin-right: 4px;
+    flex-shrink: 0;
+  }
+
+  .span-detail {
+    display: none;
+    margin: 0 12px 8px 24px;
+    padding: 12px 16px;
+    background: var(--bg-code);
+    border-radius: 4px 8px 8px 4px;
+    font-size: 13px;
+    border-left: 3px solid var(--border);
+  }
+
+  .span-detail.visible {
+    display: block;
+  }
+
+  .span-detail.sql { border-left-color: #3b82f6; }
+  .span-detail.cache { border-left-color: #22c55e; }
+  .span-detail.view { border-left-color: #f59e0b; }
+  .span-detail.http { border-left-color: #a855f7; }
+  .span-detail.mailer { border-left-color: #ec4899; }
+  .span-detail.job { border-left-color: #06b6d4; }
+  .span-detail.controller { border-left-color: #8b5cf6; }
+  .span-detail.other { border-left-color: #bec9d7; }
+
+  .span-detail pre {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 0;
+    flex-wrap: wrap;
+    padding: 12px 20px;
+    background: var(--bg-body);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .legend-color {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+  }
+
+  .legend-color.sql { background: #3b82f6; }
+  .legend-color.cache { background: #22c55e; }
+  .legend-color.view { background: #f59e0b; }
+  .legend-color.http { background: #a855f7; }
+  .legend-color.mailer { background: #ec4899; }
+  .legend-color.job { background: #06b6d4; }
+  .legend-color.controller { background: #8b5cf6; }
+  .legend-color.other { background: #bec9d7; }
+
+  .empty-clues {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-secondary);
+  }
+
+  .empty-clues svg {
+    width: 40px;
+    height: 40px;
+    margin-bottom: 12px;
+    color: var(--text-muted);
+  }
+
+  /* Clickable legend */
+  .legend-item.clickable {
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+  }
+
+  .legend-item.clickable:hover {
+    background: var(--bg-hover);
+  }
+
+  .legend-item.clickable.active {
+    background: var(--accent);
+    color: white;
+  }
+
+  .legend-color.all {
+    background: linear-gradient(135deg, #3b82f6 0%, #22c55e 25%, #f59e0b 50%, #a855f7 75%, #64748b 100%);
+  }
+
+  .waterfall-row.hidden {
+    display: none;
+  }
+
+  .span-detail.hidden-by-filter {
+    display: none !important;
+  }
+
+  .copy-ai-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-body);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .copy-ai-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+  }
+
+  .copy-ai-btn.copied {
+    background: #22c55e;
+    color: white;
+    border-color: #22c55e;
+  }
+</style>
+
+<%
+  # Helper to get span type category
+  def span_category(span)
+    name = span[:name].to_s.downcase
+    case name
+    when /sql\.active_record/, /mysql/, /postgres/, /sqlite/
+      "sql"
+    when /instantiation\.active_record/
+      "sql"  # Group with SQL since it's database-related
+    when /cache/
+      "cache"
+    when /render/, /view/
+      "view"
+    when /http/, /net_http/, /faraday/
+      "http"
+    when /mail/
+      "mailer"
+    when /job/, /active_job/
+      "job"
+    when /action_controller/, /process_action/
+      "controller"
+    else
+      "other"
+    end
+  end
+
+  # Get root span properties
+  root_props = @root_span ? @root_span[:properties] : {}
+  http_method = root_props["http.method"]
+  http_status = root_props["http.status_code"]
+  http_target = root_props["http.target"]
+  controller = root_props["code.namespace"]
+  action = root_props["code.function"]
+
+  # Calculate total duration from root span
+  total_duration_ms = @root_span ? @root_span[:duration_ms] : 1
+  root_start = @root_span ? @root_span[:start_timestamp] : 0
+  started_at = @root_span ? Time.at(@root_span[:start_timestamp] / 1_000_000_000.0) : nil
+
+  # Count span categories
+  span_counts = @child_spans.each_with_object(Hash.new(0)) do |span, counts|
+    counts[span_category(span)] += 1
+  end
+%>
+
+<div class="page-header">
+  <div class="detail-header">
+    <div class="detail-header-left">
+      <div class="detail-title">
+        <span class="badge badge-<%= http_method.to_s.downcase %>"><%= http_method || "GET" %></span>
+        <% status_class = case http_status.to_s
+           when /^2/ then "success"
+           when /^[45]/ then "error"
+           when /^3/ then "warning"
+           else "warning"
+           end %>
+        <span class="badge badge-status badge-<%= status_class %>"><%= http_status %></span>
+        <h1><%= @request[:name] %></h1>
+      </div>
+      <div class="detail-meta">
+        <div class="meta-item">
+          <span class="meta-label">Duration</span>
+          <span class="meta-value mono"><%= format_duration(total_duration_ms) %></span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Time</span>
+          <span class="meta-value"><%= started_at&.strftime("%b %d, %Y %H:%M:%S") %></span>
+        </div>
+        <% if controller && action %>
+          <div class="meta-item">
+            <span class="meta-label">Controller</span>
+            <span class="meta-value"><%= controller %>#<%= action %></span>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-body">
+  <div class="card">
+    <div class="tabs">
+      <a class="tab active" onclick="showTab('timeline')">Timeline (<%= @child_spans.size %>)</a>
+      <a class="tab" onclick="showTab('details')">Details</a>
+    </div>
+
+    <div id="tab-details" class="tab-content">
+      <% if root_props.present? && root_props.any? %>
+        <div class="details-grid">
+          <% root_props.each do |key, value| %>
+            <% next if value.is_a?(Hash) || value.is_a?(Array) %>
+            <div class="detail-item">
+              <span class="detail-label"><%= key.to_s.tr(".", " ").titleize %></span>
+              <span class="detail-value"><%= value %></span>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="empty-clues">
+          <p>No details recorded.</p>
+        </div>
+      <% end %>
+    </div>
+
+    <div id="tab-timeline" class="tab-content active">
+      <% if @child_spans.blank? %>
+        <div class="empty-clues">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <p>No timeline events recorded for this request.</p>
+        </div>
+      <% else %>
+        <div class="legend">
+          <div class="legend-item clickable active" data-filter="all" onclick="filterSpans('all')"><div class="legend-color all"></div> All (<%= @child_spans.size %>)</div>
+          <% if span_counts["sql"] > 0 %><div class="legend-item clickable" data-filter="sql" onclick="filterSpans('sql')"><div class="legend-color sql"></div> SQL (<%= span_counts["sql"] %>)</div><% end %>
+          <% if span_counts["cache"] > 0 %><div class="legend-item clickable" data-filter="cache" onclick="filterSpans('cache')"><div class="legend-color cache"></div> Cache (<%= span_counts["cache"] %>)</div><% end %>
+          <% if span_counts["view"] > 0 %><div class="legend-item clickable" data-filter="view" onclick="filterSpans('view')"><div class="legend-color view"></div> View (<%= span_counts["view"] %>)</div><% end %>
+          <% if span_counts["http"] > 0 %><div class="legend-item clickable" data-filter="http" onclick="filterSpans('http')"><div class="legend-color http"></div> HTTP (<%= span_counts["http"] %>)</div><% end %>
+          <% if span_counts["mailer"] > 0 %><div class="legend-item clickable" data-filter="mailer" onclick="filterSpans('mailer')"><div class="legend-color mailer"></div> Mailer (<%= span_counts["mailer"] %>)</div><% end %>
+          <% if span_counts["job"] > 0 %><div class="legend-item clickable" data-filter="job" onclick="filterSpans('job')"><div class="legend-color job"></div> Job (<%= span_counts["job"] %>)</div><% end %>
+          <% if span_counts["controller"] > 0 %><div class="legend-item clickable" data-filter="controller" onclick="filterSpans('controller')"><div class="legend-color controller"></div> Controller (<%= span_counts["controller"] %>)</div><% end %>
+          <% if span_counts["other"] > 0 %><div class="legend-item clickable" data-filter="other" onclick="filterSpans('other')"><div class="legend-color other"></div> Other (<%= span_counts["other"] %>)</div><% end %>
+          <div style="margin-left: auto; display: flex; gap: 8px;">
+            <button type="button" onclick="collapseAll()" class="copy-ai-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="4 14 10 14 10 20"></polyline>
+                <polyline points="20 10 14 10 14 4"></polyline>
+                <line x1="14" y1="10" x2="21" y2="3"></line>
+                <line x1="3" y1="21" x2="10" y2="14"></line>
+              </svg>
+              Collapse All
+            </button>
+            <button type="button" onclick="copyForAI()" class="copy-ai-btn" id="copy-ai-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              Copy for AI
+            </button>
+          </div>
+        </div>
+
+        <div style="padding: 12px;">
+          <div class="waterfall-header">
+            <div>Event</div>
+            <div>Duration</div>
+          </div>
+
+          <div class="waterfall">
+            <% @child_spans.each_with_index do |span, index| %>
+              <%
+                offset_ns = span[:start_timestamp] - root_start
+                offset_ms = offset_ns / 1_000_000.0
+                left = (offset_ms / [total_duration_ms, 1].max * 100).clamp(0, 99.5)
+                width = (span[:duration_ms] / [total_duration_ms, 1].max * 100).clamp(0.5, [0.5, 100 - left].max)
+                category = span_category(span)
+
+                # Generate display name
+                props = span[:properties] || {}
+                display_name = if span[:name] == "instantiation.active_record"
+                  # Show "User Instantiation (23)" format
+                  class_name = props["class_name"] || "Record"
+                  count = props["record_count"]
+                  count ? "#{class_name} Instantiation (#{count})" : "#{class_name} Instantiation"
+                elsif category == "sql"
+                  props["db.statement"]&.to_s&.truncate(100) || props["name"] || span[:name]
+                elsif category == "view"
+                  identifier = props["identifier"] || props["code.filepath"]
+                  if identifier
+                    identifier.to_s.sub(/^.*\/app\/views\//, "")
+                  else
+                    span[:name]
+                  end
+                elsif category == "http"
+                  url = props["http.url"] || props["http.target"]
+                  method = props["http.method"]
+                  "#{method} #{url}".strip.presence || span[:name]
+                elsif category == "controller"
+                  ns = props["code.namespace"]
+                  fn = props["code.function"]
+                  ns && fn ? "#{ns}##{fn}" : span[:name]
+                else
+                  span[:name]
+                end
+              %>
+              <div class="waterfall-row" onclick="toggleSpan(<%= index %>)" id="row-<%= index %>" data-span-type="<%= category %>">
+                <div class="waterfall-bar-container">
+                  <div class="waterfall-bar <%= category %>" style="left: <%= left %>%; width: <%= width %>%;"></div>
+                  <span class="waterfall-label" title="<%= display_name %>"><%= display_name %></span>
+                  <span class="waterfall-duration"><%= format_duration(span[:duration_ms]) %></span>
+                </div>
+              </div>
+              <div class="span-detail <%= category %>" id="span-<%= index %>">
+                <pre><code><%= format_content(span[:properties]) %></code></pre>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Data for Copy for AI feature
+  const requestData = <%= {
+    name: @request[:name],
+    duration_ms: total_duration_ms,
+    http_method: http_method,
+    http_status: http_status,
+    http_target: http_target,
+    controller: controller,
+    action: action
+  }.to_json.html_safe %>;
+
+  const spansData = <%= @child_spans.map { |span|
+    {
+      name: span[:name],
+      duration_ms: span[:duration_ms],
+      offset_ms: (span[:start_timestamp] - root_start) / 1_000_000.0,
+      properties: span[:properties]
+    }
+  }.to_json.html_safe %>;
+
+  function formatDuration(ms) {
+    if (ms === null || ms === undefined) return '0ms';
+    if (ms >= 1000) return (ms / 1000).toFixed(2) + 's';
+    return ms.toFixed(2) + 'ms';
+  }
+
+  function getSpanCategory(name) {
+    name = (name || '').toLowerCase();
+    if (name.includes('sql') || name.includes('mysql') || name.includes('postgres') || name.includes('sqlite')) return 'sql';
+    if (name.includes('cache')) return 'cache';
+    if (name.includes('render') || name.includes('view')) return 'view';
+    if (name.includes('http') || name.includes('net_http') || name.includes('faraday')) return 'http';
+    if (name.includes('mail')) return 'mailer';
+    if (name.includes('job') || name.includes('active_job')) return 'job';
+    if (name.includes('action_controller') || name.includes('process_action')) return 'controller';
+    return 'other';
+  }
+
+  function copyForAI() {
+    let output = [];
+
+    output.push(`> Given this Rails request trace, how would you improve performance? What information is missing that would help diagnose issues?`);
+    output.push('');
+
+    const method = requestData.http_method || 'GET';
+    const status = requestData.http_status || '200';
+    output.push(`# ${method} ${requestData.name} [${status}] - ${formatDuration(requestData.duration_ms)}`);
+    if (requestData.controller && requestData.action) {
+      output.push(`Controller: ${requestData.controller}#${requestData.action}`);
+    }
+    output.push('');
+
+    // Performance Summary
+    output.push('## Performance Summary');
+    output.push('');
+    output.push(`- **Total:** ${formatDuration(requestData.duration_ms)}`);
+
+    // SQL stats
+    const sqlSpans = spansData.filter(s => getSpanCategory(s.name) === 'sql');
+    if (sqlSpans.length > 0) {
+      const sqlTotalMs = sqlSpans.reduce((sum, s) => sum + (s.duration_ms || 0), 0);
+      output.push(`- **SQL:** ${sqlSpans.length} queries, ${formatDuration(sqlTotalMs)} total`);
+
+      // Find slowest queries
+      const slowest = [...sqlSpans].sort((a, b) => (b.duration_ms || 0) - (a.duration_ms || 0)).slice(0, 3);
+      if (slowest.length > 0 && slowest[0].duration_ms > 1) {
+        const slowList = slowest.map(s => `${s.properties?.['db.statement']?.substring(0, 50) || s.name} (${formatDuration(s.duration_ms)})`).join(', ');
+        output.push(`- **Slowest queries:** ${slowList}`);
+      }
+    }
+
+    // View rendering stats
+    const viewSpans = spansData.filter(s => getSpanCategory(s.name) === 'view');
+    if (viewSpans.length > 0) {
+      const viewTotalMs = viewSpans.reduce((sum, s) => sum + (s.duration_ms || 0), 0);
+      output.push(`- **Views:** ${viewSpans.length} renders, ${formatDuration(viewTotalMs)} total`);
+    }
+
+    output.push('');
+
+    // Timeline
+    output.push('## Timeline');
+    output.push('');
+
+    spansData.forEach((span) => {
+      const offset = formatDuration(span.offset_ms);
+      const duration = formatDuration(span.duration_ms);
+      const props = span.properties || {};
+      let name = span.name;
+      let extra = '';
+
+      const category = getSpanCategory(span.name);
+      if (category === 'sql' && props['db.statement']) {
+        name = 'SQL';
+        extra = props['db.statement'];
+      } else if (category === 'view' && props['identifier']) {
+        name = 'View';
+        extra = props['identifier'].replace(/.*\/app\/views\//, '');
+      } else if (category === 'http') {
+        name = 'HTTP';
+        extra = `${props['http.method'] || ''} ${props['http.url'] || props['http.target'] || ''}`.trim();
+      }
+
+      let line = `${offset.padStart(8)} | ${duration.padStart(8)} | ${name}`;
+      if (extra) {
+        line += `: ${extra}`;
+      }
+      output.push(line);
+    });
+
+    const text = output.join('\n');
+
+    navigator.clipboard.writeText(text).then(() => {
+      const btn = document.getElementById('copy-ai-btn');
+      const originalHTML = btn.innerHTML;
+      btn.classList.add('copied');
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied!';
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = originalHTML;
+      }, 2000);
+    });
+  }
+
+  function showTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + tabName).classList.add('active');
+    event.target.classList.add('active');
+  }
+
+  function toggleSpan(index) {
+    const detail = document.getElementById('span-' + index);
+    const row = document.getElementById('row-' + index);
+
+    if (detail.classList.contains('visible')) {
+      detail.classList.remove('visible');
+      row.classList.remove('selected');
+    } else {
+      detail.classList.add('visible');
+      row.classList.add('selected');
+    }
+  }
+
+  function collapseAll() {
+    document.querySelectorAll('.span-detail.visible').forEach(el => {
+      el.classList.remove('visible');
+    });
+    document.querySelectorAll('.waterfall-row.selected').forEach(el => {
+      el.classList.remove('selected');
+    });
+  }
+
+  function filterSpans(filterType) {
+    document.querySelectorAll('.legend-item.clickable').forEach(el => {
+      el.classList.remove('active');
+    });
+    document.querySelector('.legend-item[data-filter="' + filterType + '"]').classList.add('active');
+
+    document.querySelectorAll('.waterfall-row').forEach(row => {
+      const spanType = row.getAttribute('data-span-type');
+      if (filterType === 'all' || spanType === filterType) {
+        row.classList.remove('hidden');
+      } else {
+        row.classList.add('hidden');
+        row.classList.remove('selected');
+      }
+    });
+
+    document.querySelectorAll('.span-detail').forEach(detail => {
+      const index = detail.id.replace('span-', '');
+      const row = document.getElementById('row-' + index);
+      if (row.classList.contains('hidden')) {
+        detail.classList.add('hidden-by-filter');
+        detail.classList.remove('visible');
+      } else {
+        detail.classList.remove('hidden-by-filter');
+      }
+    });
+  }
+</script>
