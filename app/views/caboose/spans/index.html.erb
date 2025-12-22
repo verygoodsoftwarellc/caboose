@@ -65,13 +65,16 @@
     when "queries"
       stmt = props["db.statement"]&.to_s
       name = props["name"]&.to_s # e.g., "User Load"
-      # Show SQL as primary, name as secondary. Fall back to name if no SQL.
+      db_name = props["db.name"]&.to_s # e.g., "primary", "analytics"
+      # Build secondary: "User Load" or "User Load · primary" if db name present
+      secondary = [name.presence, db_name.presence].compact.join(" · ").presence
+      # Show SQL as primary, name/db as secondary. Fall back to name if no SQL.
       if stmt.present?
-        { primary: stmt, secondary: name.presence }
+        { primary: stmt, secondary: secondary }
       elsif name.present?
-        { primary: name, secondary: nil }
+        { primary: name, secondary: db_name.presence }
       else
-        { primary: span[:name], secondary: nil }
+        { primary: span[:name], secondary: db_name.presence }
       end
     when "cache"
       key = props["key"]&.to_s
@@ -114,7 +117,7 @@
       cmd = props["db.statement"]&.to_s
       { primary: cmd.presence || span[:name], secondary: nil }
     when "exceptions"
-      exc_type = span[:exception_name]
+      exc_type = span[:exception_type]
       exc_message = span[:exception_message]
       primary = if exc_type.present? && exc_message.present?
         "#{exc_type}: #{exc_message}"
