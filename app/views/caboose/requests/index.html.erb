@@ -138,7 +138,7 @@
                   req[:name]
                 end
               %>
-              <tr onclick="window.location='<%= request_path(req[:trace_id]) %>'" style="cursor: pointer;">
+              <tr onclick="navigateIfNotSelecting('<%= request_path(req[:trace_id]) %>')" style="cursor: pointer;">
                 <td class="path-cell">
                   <span class="action-name path-text" title="<%= display_name %>"><%= display_name %></span>
                   <span class="path-subtext" title="<%= req[:http_target] %>">

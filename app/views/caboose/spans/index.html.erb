@@ -171,7 +171,7 @@
             <% @spans.each do |span| %>
               <% started_at = Time.at(span[:start_timestamp] / 1_000_000_000.0) rescue nil %>
               <% display_info = span_display_info(span, @category) %>
-              <tr onclick="window.location='<%= span_path(span[:id], category: @category) %>'" style="cursor: pointer;">
+              <tr onclick="navigateIfNotSelecting('<%= span_path(span[:id], category: @category) %>')" style="cursor: pointer;">
                 <td class="path-cell">
                   <span class="span-name path-text" title="<%= display_info[:primary] %>"><%= display_info[:primary] %></span>
                   <% if display_info[:secondary].present? %>

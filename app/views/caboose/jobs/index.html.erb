@@ -95,7 +95,7 @@
                 # Extract job class name from the span name (e.g., "MyJob process" -> "MyJob")
                 display_name = job[:job_class] || job[:name].to_s.sub(/ (process|publish)$/, '')
               %>
-              <tr onclick="window.location='<%= job_path(job[:trace_id]) %>'" style="cursor: pointer;">
+              <tr onclick="navigateIfNotSelecting('<%= job_path(job[:trace_id]) %>')" style="cursor: pointer;">
                 <td class="path-cell">
                   <span class="job-name path-text" title="<%= display_name %>"><%= display_name %></span>
                   <% queue = job[:queue_name] || "default" %>

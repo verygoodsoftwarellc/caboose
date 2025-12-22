@@ -728,6 +728,15 @@
         e.preventDefault();
       }
     });
+
+    // Navigate to URL only if user isn't selecting text
+    function navigateIfNotSelecting(url) {
+      const selection = window.getSelection();
+      if (selection && selection.toString().length > 0) {
+        return; // User is selecting text, don't navigate
+      }
+      window.location = url;
+    }
   </script>
 </body>
 </html>
