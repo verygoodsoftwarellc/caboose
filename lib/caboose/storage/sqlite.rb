@@ -262,12 +262,16 @@ module Caboose
                  root.kind as root_kind,
                  root_controller.value as root_controller,
                  root_action.value as root_action,
-                 e.name as exception_name
+                 e.name as exception_name,
+                 exc_message.value as exception_message,
+                 exc_stacktrace.value as exception_stacktrace
           FROM caboose_events e
           JOIN caboose_spans s ON s.id = e.span_id
           LEFT JOIN caboose_spans root ON root.trace_id = s.trace_id AND root.parent_span_id = '#{MISSING_PARENT_ID}'
           LEFT JOIN caboose_properties root_controller ON root_controller.owner_type = 'Caboose::Span' AND root_controller.owner_id = root.id AND root_controller.key = 'code.namespace'
           LEFT JOIN caboose_properties root_action ON root_action.owner_type = 'Caboose::Span' AND root_action.owner_id = root.id AND root_action.key = 'code.function'
+          LEFT JOIN caboose_properties exc_message ON exc_message.owner_type = 'Caboose::Event' AND exc_message.owner_id = e.id AND exc_message.key = 'exception.message'
+          LEFT JOIN caboose_properties exc_stacktrace ON exc_stacktrace.owner_type = 'Caboose::Event' AND exc_stacktrace.owner_id = e.id AND exc_stacktrace.key = 'exception.stacktrace'
           #{where_clause}
           ORDER BY e.created_at DESC
           LIMIT ? OFFSET ?
@@ -713,9 +717,12 @@ module Caboose
         span[:root_trace_id] = row["root_trace_id"]
         span[:root_name] = row["root_name"]
         span[:root_kind] = row["root_kind"]
+        # For requests: controller#action, for jobs: code.namespace is the job class
         span[:root_controller] = parse_property_value(row["root_controller"], 0)
         span[:root_action] = parse_property_value(row["root_action"], 0)
         span[:exception_name] = row["exception_name"] if row["exception_name"]
+        span[:exception_message] = parse_property_value(row["exception_message"], 0) if row["exception_message"]
+        span[:exception_stacktrace] = parse_property_value(row["exception_stacktrace"], 0) if row["exception_stacktrace"]
 
         span
       end

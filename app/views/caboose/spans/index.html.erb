@@ -77,17 +77,30 @@
       key = props["key"]&.to_s
       op = span[:name].to_s.sub(".active_support", "").sub("cache_", "")
       store = props["store"]&.to_s&.sub(/^ActiveSupport::Cache::/, "")
-      { primary: key ? "#{op}: #{key.truncate(80)}" : span[:name], secondary: store }
+      { primary: key.presence || span[:name], secondary: store, cache_op: op }
     when "views"
       identifier = props["identifier"] || props["code.filepath"]
       primary = identifier ? identifier.to_s.sub(/^.*\/app\/views\//, "") : span[:name]
       { primary: primary, secondary: nil }
     when "http"
-      url = props["http.url"] || props["http.target"]
+      full_url = props["http.url"] || ""
+      target = props["http.target"] || ""
+      # Try to get host from various OpenTelemetry attributes
+      host = props["http.host"] || props["net.peer.name"] || props["peer.service"]
+
+      # Extract domain and path from URL
+      uri = URI.parse(full_url) rescue nil
+      if uri && uri.host
+        domain = uri.host
+        path = uri.path.presence || "/"
+        path = "#{path}?#{uri.query}" if uri.query.present?
+      else
+        domain = host
+        path = target.presence || full_url
+      end
       method = props["http.method"]
       status = props["http.status_code"]
-      primary = "#{method} #{url}".strip.truncate(100)
-      { primary: primary, secondary: status ? "Status: #{status}" : nil }
+      { primary: path.to_s.truncate(100), secondary: domain, http_method: method, http_status: status }
     when "mail"
       mailer = props["mailer"]
       action = props["action"]
@@ -98,10 +111,17 @@
         { primary: span[:name], secondary: nil }
       end
     when "redis"
-      cmd = props["db.statement"]&.to_s&.truncate(100)
+      cmd = props["db.statement"]&.to_s
       { primary: cmd.presence || span[:name], secondary: nil }
     when "exceptions"
-      { primary: span[:exception_name] || span[:name], secondary: nil }
+      exc_type = span[:exception_name] || "exception"
+      exc_message = span[:exception_message]
+      primary = exc_message.present? ? "#{exc_type}: #{exc_message}" : exc_type
+      # Get first line of backtrace that's from app code (not gems/framework)
+      stacktrace = span[:exception_stacktrace].to_s
+      first_app_line = stacktrace.split("\n").find { |line| line.include?("/app/") } || stacktrace.split("\n").first
+      secondary = first_app_line&.strip.to_s.truncate(200)
+      { primary: primary, secondary: secondary }
     else
       { primary: span[:name], secondary: nil }
     end
@@ -137,6 +157,12 @@
           <thead>
             <tr>
               <th><%= page_title.singularize %></th>
+              <% if @category == "http" %>
+                <th style="width: 70px; text-align: right;">Verb</th>
+                <th style="width: 70px; text-align: right;">Status</th>
+              <% elsif @category == "cache" %>
+                <th style="width: 100px; text-align: right;">Operation</th>
+              <% end %>
               <th style="width: 100px; text-align: right;">Duration</th>
               <th style="width: 120px; text-align: right;">Happened</th>
             </tr>
@@ -152,6 +178,40 @@
                     <span class="path-subtext"><%= display_info[:secondary] %></span>
                   <% end %>
                 </td>
+                <% if @category == "http" %>
+                  <td style="text-align: right;">
+                    <% if display_info[:http_method] %>
+                      <span class="badge badge-<%= display_info[:http_method].to_s.downcase %>"><%= display_info[:http_method] %></span>
+                    <% end %>
+                  </td>
+                  <td style="text-align: right;">
+                    <% if display_info[:http_status] %>
+                      <%
+                        status_class = case display_info[:http_status].to_s
+                          when /^2/ then "success"
+                          when /^[45]/ then "error"
+                          when /^3/ then "warning"
+                          else "warning"
+                        end
+                      %>
+                      <span class="badge badge-status badge-<%= status_class %>"><%= display_info[:http_status] %></span>
+                    <% end %>
+                  </td>
+                <% elsif @category == "cache" %>
+                  <td style="text-align: right;">
+                    <% if display_info[:cache_op] %>
+                      <%
+                        cache_class = case display_info[:cache_op].to_s
+                          when /hit/ then "success"
+                          when /write/ then "warning"
+                          when /delete/ then "error"
+                          else "other"
+                        end
+                      %>
+                      <span class="badge badge-status badge-<%= cache_class %>"><%= display_info[:cache_op] %></span>
+                    <% end %>
+                  </td>
+                <% end %>
                 <td class="duration" style="text-align: right;"><%= format_duration(span[:duration_ms]) %></td>
                 <td class="timestamp" style="text-align: right;"><%= started_at ? time_ago_in_words(started_at) : "-" %></td>
               </tr>

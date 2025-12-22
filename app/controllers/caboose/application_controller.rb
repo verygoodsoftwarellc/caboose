@@ -5,5 +5,18 @@ module Caboose
     protect_from_forgery with: :exception
 
     layout "caboose/application"
+
+    helper_method :show_redis_tab?
+
+    private
+
+    # Only show the Redis tab if:
+    # 1. The Redis client library is loaded
+    # 2. There are Redis spans in the database
+    def show_redis_tab?
+      return false unless defined?(::Redis)
+
+      Caboose.storage.count_spans_by_category("redis") > 0
+    end
   end
 end
