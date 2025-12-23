@@ -39,8 +39,8 @@ module Caboose
               # How long to keep spans in hours (default: 24)
               # config.retention_hours = 24
 
-              # Maximum number of spans to store (default: 5000)
-              # config.max_spans = 5000
+              # Maximum number of spans to store (default: 10000)
+              # config.max_spans = 10000
 
               # Path to the SQLite database (default: db/caboose.sqlite3)
               # config.database_path = Rails.root.join("db", "caboose.sqlite3").to_s

@@ -17,7 +17,7 @@ module Caboose
     def initialize
       @enabled = true
       @retention_hours = 24
-      @max_spans = 5000
+      @max_spans = 10_000
       @database_path = nil
       @ignore_request = ->(request) { false }
       @subscribe_patterns = DEFAULT_SUBSCRIBE_PATTERNS.dup
