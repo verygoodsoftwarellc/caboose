@@ -10,3 +10,4 @@
 /examples/log/*
 examples/db/*.sqlite3*
 *.DS_Store
+log/*
