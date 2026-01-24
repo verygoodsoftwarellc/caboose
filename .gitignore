@@ -1,5 +1,6 @@
 /.bundle/
 /.yardoc
+Gemfile.lock
 /_yardoc/
 /coverage/
 /doc/
@@ -10,3 +11,4 @@
 /examples/log/*
 examples/db/*.sqlite3*
 *.DS_Store
+log/*
