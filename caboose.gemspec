@@ -34,7 +34,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "opentelemetry-sdk"
   spec.add_dependency "opentelemetry-instrumentation-rack"
   spec.add_dependency "opentelemetry-instrumentation-net_http"
-  spec.add_dependency "opentelemetry-instrumentation-active_support"
+  spec.add_dependency "opentelemetry-instrumentation-active_support", ">= 0.10.0"
   spec.add_dependency "opentelemetry-instrumentation-action_pack"
   spec.add_dependency "opentelemetry-instrumentation-action_view"
   spec.add_dependency "opentelemetry-instrumentation-active_job"
