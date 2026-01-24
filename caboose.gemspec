@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.description = "Track what just happened in your Rails app"
   spec.homepage = "https://github.com/jnunemaker/caboose"
   spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.0.0"
+  spec.required_ruby_version = ">= 3.1.0"
 
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
 
@@ -28,9 +28,9 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "sqlite3", ">= 1.4"
-  spec.add_dependency "railties", ">= 7.0"
-  spec.add_dependency "activesupport", ">= 7.0"
-  spec.add_dependency "actionpack", ">= 7.0"
+  spec.add_dependency "railties", ">= 6.1"
+  spec.add_dependency "activesupport", ">= 6.1"
+  spec.add_dependency "actionpack", ">= 6.1"
   spec.add_dependency "opentelemetry-sdk"
   spec.add_dependency "opentelemetry-instrumentation-rack"
   spec.add_dependency "opentelemetry-instrumentation-net_http"
