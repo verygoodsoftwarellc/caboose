@@ -28,9 +28,9 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "sqlite3", ">= 1.4"
-  spec.add_dependency "railties", ">= 6.1"
-  spec.add_dependency "activesupport", ">= 6.1"
-  spec.add_dependency "actionpack", ">= 6.1"
+  spec.add_dependency "railties", ">= 7.0"
+  spec.add_dependency "activesupport", ">= 7.0"
+  spec.add_dependency "actionpack", ">= 7.0"
   spec.add_dependency "opentelemetry-sdk"
   spec.add_dependency "opentelemetry-instrumentation-rack"
   spec.add_dependency "opentelemetry-instrumentation-net_http"
