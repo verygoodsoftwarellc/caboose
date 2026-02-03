@@ -12,6 +12,7 @@ module Caboose
     # Metrics: aggregated counters in memory, flushed periodically (default: production only)
     attr_accessor :spans_enabled
     attr_accessor :metrics_enabled
+    attr_accessor :metrics_flush_interval # seconds between flushes (default: 60)
 
     # Default patterns to auto-subscribe to for custom instrumentation
     # Use "app." prefix in your ActiveSupport::Notifications.instrument calls
@@ -32,6 +33,7 @@ module Caboose
       # - Production: spans OFF (too expensive), metrics ON (lightweight aggregation)
       @spans_enabled = rails_development?
       @metrics_enabled = rails_production?
+      @metrics_flush_interval = 60 # seconds
     end
 
     def database_path

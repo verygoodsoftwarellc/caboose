@@ -10,6 +10,8 @@ require_relative "caboose/source_location"
 require_relative "caboose/metric_key"
 require_relative "caboose/metric_storage"
 require_relative "caboose/metric_span_processor"
+require_relative "caboose/metric_store"
+require_relative "caboose/metric_flusher"
 
 module Caboose
   class Error < StandardError; end
@@ -67,6 +69,33 @@ module Caboose
     @metric_storage = storage
   end
 
+  def metric_store
+    @metric_store ||= MetricStore.new
+  end
+
+  def metric_store=(store)
+    @metric_store = store
+  end
+
+  def metric_flusher
+    @metric_flusher
+  end
+
+  def metric_flusher=(flusher)
+    @metric_flusher = flusher
+  end
+
+  # Manually flush metrics to database (useful for testing or forced flushes).
+  def flush_metrics
+    @metric_flusher&.flush_now || 0
+  end
+
+  # Re-initialize metric flusher after fork.
+  # Call this from Puma/Unicorn after_fork hooks.
+  def after_fork
+    @metric_flusher&.after_fork
+  end
+
   # Configure OpenTelemetry with selected instrumentations
   def configure_opentelemetry
     return if @otel_configured
@@ -96,11 +125,22 @@ module Caboose
         c.add_span_processor(span_processor)
       end
 
-      # Metrics: lightweight aggregation in memory
+      # Metrics: lightweight aggregation in memory, flushed to database periodically
       if configuration.metrics_enabled
         @metric_storage = MetricStorage.new
         metric_processor = MetricSpanProcessor.new(storage: @metric_storage)
         c.add_span_processor(metric_processor)
+
+        # Start background flusher
+        @metric_flusher = MetricFlusher.new(
+          storage: @metric_storage,
+          store: metric_store,
+          interval: configuration.metrics_flush_interval
+        )
+        @metric_flusher.start
+
+        # Ensure graceful shutdown
+        at_exit { @metric_flusher&.stop }
       end
 
       # Configure specific instrumentations
@@ -289,7 +329,10 @@ module Caboose
     @span_processor = nil
     @tracer = nil
     @storage = nil
+    @metric_flusher&.stop
+    @metric_flusher = nil
     @metric_storage = nil
+    @metric_store = nil
     @otel_configured = false
   end
 end

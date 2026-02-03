@@ -240,8 +240,39 @@ module Caboose
              span.attributes["url.path"] ||
              extract_path_from_url(span)
 
-      # Normalize path - remove query string, limit depth
-      path&.to_s&.split("?")&.first || "/"
+      # Normalize path - remove query string, replace IDs with placeholders
+      normalize_path(path&.to_s&.split("?")&.first || "/")
+    end
+
+    # Normalize URL paths to prevent cardinality explosion.
+    # Replaces numeric IDs, UUIDs, and other high-cardinality segments with placeholders.
+    def normalize_path(path)
+      return "/" if path.nil? || path.empty?
+
+      segments = path.split("/")
+      normalized = segments.map do |segment|
+        next segment if segment.empty?
+
+        case segment
+        when /\A\d+\z/
+          # Pure numeric ID: /users/123 -> /users/:id
+          ":id"
+        when /\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
+          # UUID: /posts/550e8400-e29b-41d4-a716-446655440000 -> /posts/:uuid
+          ":uuid"
+        when /\A[0-9a-f]{24}\z/i
+          # MongoDB ObjectId: /items/507f1f77bcf86cd799439011 -> /items/:id
+          ":id"
+        when /\A[0-9a-f]{32,}\z/i
+          # Long hex strings (tokens, hashes): -> :token
+          ":token"
+        else
+          segment
+        end
+      end
+
+      result = normalized.join("/")
+      result.empty? ? "/" : result
     end
 
     def extract_path_from_url(span)

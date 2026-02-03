@@ -1,0 +1,29 @@
+# frozen_string_literal: true
+
+class CreateCabooseMetrics < ActiveRecord::Migration<%= migration_version %>
+  def change
+    create_table :caboose_metrics do |t|
+      t.datetime :bucket, null: false
+      t.string :namespace, null: false, limit: 50
+      t.string :service, null: false, limit: 100
+      t.string :target, null: false, default: "", limit: 255
+      t.string :operation, null: false, limit: 100
+      t.bigint :count, null: false, default: 0
+      t.bigint :sum_ms, null: false, default: 0
+      t.bigint :error_count, null: false, default: 0
+
+      t.timestamps
+    end
+
+    # Unique constraint for upserts
+    add_index :caboose_metrics,
+      [:bucket, :namespace, :service, :target, :operation],
+      unique: true,
+      name: "index_caboose_metrics_unique_key"
+
+    # Query indexes
+    add_index :caboose_metrics, :bucket
+    add_index :caboose_metrics, :namespace
+    add_index :caboose_metrics, [:namespace, :service]
+  end
+end

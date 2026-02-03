@@ -199,6 +199,106 @@ class MetricSpanProcessorTest < Minitest::Test
     assert_equal OpenTelemetry::SDK::Trace::Export::SUCCESS, result
   end
 
+  def test_http_path_normalizes_numeric_ids
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "GET",
+        "http.host" => "api.example.com",
+        "http.target" => "/users/12345/posts/67890",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "/users/:id/posts/:id", key.target
+  end
+
+  def test_http_path_normalizes_uuids
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "GET",
+        "http.host" => "api.example.com",
+        "http.target" => "/items/550e8400-e29b-41d4-a716-446655440000",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "/items/:uuid", key.target
+  end
+
+  def test_http_path_normalizes_mongo_ids
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "GET",
+        "http.host" => "api.example.com",
+        "http.target" => "/documents/507f1f77bcf86cd799439011",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "/documents/:id", key.target
+  end
+
+  def test_http_path_normalizes_long_tokens
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "GET",
+        "http.host" => "api.example.com",
+        "http.target" => "/verify/a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "/verify/:token", key.target
+  end
+
+  def test_http_path_preserves_static_segments
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "GET",
+        "http.host" => "api.example.com",
+        "http.target" => "/api/v1/users/search",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "/api/v1/users/search", key.target
+  end
+
   # Mock span class for testing
   class MockSpan
     attr_reader :kind, :parent_span_id, :name, :attributes, :start_timestamp, :end_timestamp, :status
