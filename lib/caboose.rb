@@ -7,6 +7,9 @@ require "opentelemetry/sdk"
 
 require_relative "caboose/sqlite_exporter"
 require_relative "caboose/source_location"
+require_relative "caboose/metric_key"
+require_relative "caboose/metric_storage"
+require_relative "caboose/metric_span_processor"
 
 module Caboose
   class Error < StandardError; end
@@ -56,6 +59,14 @@ module Caboose
     OpenTelemetry::Common::Utilities.untraced(&block)
   end
 
+  def metric_storage
+    @metric_storage
+  end
+
+  def metric_storage=(storage)
+    @metric_storage = storage
+  end
+
   # Configure OpenTelemetry with selected instrumentations
   def configure_opentelemetry
     return if @otel_configured
@@ -79,7 +90,18 @@ module Caboose
 
     OpenTelemetry::SDK.configure do |c|
       c.service_name = service_name
-      c.add_span_processor(span_processor)
+
+      # Spans: detailed trace data stored in SQLite
+      if configuration.spans_enabled
+        c.add_span_processor(span_processor)
+      end
+
+      # Metrics: lightweight aggregation in memory
+      if configuration.metrics_enabled
+        @metric_storage = MetricStorage.new
+        metric_processor = MetricSpanProcessor.new(storage: @metric_storage)
+        c.add_span_processor(metric_processor)
+      end
 
       # Configure specific instrumentations
       c.use "OpenTelemetry::Instrumentation::Rack",
@@ -98,7 +120,9 @@ module Caboose
 
     # Subscribe to common ActiveSupport notification patterns
     # This captures SQL, cache, mailer, and custom notifications
-    subscribe_to_notifications
+    if configuration.spans_enabled
+      subscribe_to_notifications
+    end
 
     @otel_configured = true
   end
@@ -265,6 +289,7 @@ module Caboose
     @span_processor = nil
     @tracer = nil
     @storage = nil
+    @metric_storage = nil
     @otel_configured = false
   end
 end
