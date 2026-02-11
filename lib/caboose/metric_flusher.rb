@@ -1,48 +1,59 @@
 # frozen_string_literal: true
 
+require "concurrent/timer_task"
+require "concurrent/executor/fixed_thread_pool"
+
 module Caboose
-  # Background thread that periodically flushes in-memory metrics to the database.
-  # Handles fork safety for Puma/Unicorn and graceful shutdown.
+  # Background threads that periodically drain in-memory metrics and submit
+  # them via HTTP. Uses concurrent-ruby TimerTask + FixedThreadPool, matching
+  # the pattern in Flipper's telemetry.
+  #
+  # Fork-safe: detects forked processes and restarts automatically.
   class MetricFlusher
     DEFAULT_INTERVAL = 60 # seconds
+    DEFAULT_SHUTDOWN_TIMEOUT = 5 # seconds
 
-    attr_reader :interval
+    attr_reader :interval, :shutdown_timeout
 
-    def initialize(storage:, submitter:, interval: DEFAULT_INTERVAL)
+    def initialize(storage:, submitter:, interval: DEFAULT_INTERVAL, shutdown_timeout: DEFAULT_SHUTDOWN_TIMEOUT)
       @storage = storage
       @submitter = submitter
       @interval = interval
-      @mutex = Mutex.new
-      @thread = nil
-      @running = false
-      @pid = nil
+      @shutdown_timeout = shutdown_timeout
+      @pid = $$
     end
 
-    # Start the background flush thread.
-    # Safe to call multiple times - will only start one thread.
     def start
-      @mutex.synchronize do
-        return if @running && thread_alive?
+      @pool = Concurrent::FixedThreadPool.new(1, {
+        max_queue: 20,
+        fallback_policy: :discard,
+        name: "caboose-metrics-submit-pool".freeze,
+      })
 
-        @running = true
-        @pid = Process.pid
-        @thread = Thread.new { run_flush_loop }
-        @thread.name = "caboose-metric-flusher" if @thread.respond_to?(:name=)
+      @timer = Concurrent::TimerTask.execute({
+        execution_interval: @interval,
+        name: "caboose-metrics-drain-timer".freeze,
+      }) { post_to_pool }
+    end
+
+    def stop
+      if @timer
+        @timer.shutdown
+        @timer.wait_for_termination(1)
+        @timer.kill unless @timer.shutdown?
+      end
+
+      if @pool
+        post_to_pool # one last drain
+        @pool.shutdown
+        pool_terminated = @pool.wait_for_termination(@shutdown_timeout)
+        @pool.kill unless pool_terminated
       end
     end
 
-    # Stop the background flush thread and perform final flush.
-    def stop
-      @mutex.synchronize do
-        @running = false
-        @thread&.wakeup rescue nil
-      end
-
-      # Wait for thread to finish (with timeout)
-      @thread&.join(5)
-
-      # Final flush to ensure no data loss
-      flush_now
+    def restart
+      stop
+      start
     end
 
     # Manually trigger a flush (useful for testing or forced flushes).
@@ -62,59 +73,42 @@ module Caboose
       0
     end
 
-    # Check if the flusher is running.
     def running?
-      @running && thread_alive?
+      @timer&.running? || false
     end
 
     # Re-initialize after fork (call from Puma/Unicorn after_fork hooks).
-    # This is necessary because threads don't survive fork.
     def after_fork
-      @mutex.synchronize do
-        # Thread from parent process is dead after fork
-        @thread = nil
-
-        # Restart if we were running before fork
-        if @running
-          @pid = Process.pid
-          @thread = Thread.new { run_flush_loop }
-          @thread.name = "caboose-metric-flusher" if @thread.respond_to?(:name=)
-        end
-      end
+      detect_forking
     end
 
     private
 
-    def run_flush_loop
-      while @running
-        sleep_with_interrupt(@interval)
+    def detect_forking
+      if @pid != $$
+        restart
+        @pid = $$
+      end
+    end
 
-        # Check if we're in a forked process (thread should have been restarted)
-        if Process.pid != @pid
-          break
-        end
+    def post_to_pool
+      detect_forking
 
-        next unless @running
+      drained = @storage.drain
+      return if drained.empty?
 
-        flush_now
+      @pool.post { submit_to_cloud(drained) }
+    rescue => e
+      warn "[Caboose] Metric drain error: #{e.message}"
+    end
+
+    def submit_to_cloud(drained)
+      _response, error = @submitter.submit(drained)
+      if error
+        warn "[Caboose] Metric submission error: #{error.message}"
       end
     rescue => e
-      warn "[Caboose] Metric flusher crashed: #{e.message}"
-      # Don't restart automatically - let the app handle it
-    end
-
-    def sleep_with_interrupt(seconds)
-      # Sleep in small increments so we can respond to stop quickly
-      remaining = seconds
-      while remaining > 0 && @running
-        sleep_time = [remaining, 1.0].min
-        sleep(sleep_time)
-        remaining -= sleep_time
-      end
-    end
-
-    def thread_alive?
-      @thread&.alive? && Process.pid == @pid
+      warn "[Caboose] Metric submission error: #{e.message}"
     end
   end
 end

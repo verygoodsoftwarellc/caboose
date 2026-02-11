@@ -15,8 +15,8 @@ module Caboose
     attr_accessor :metrics_flush_interval # seconds between flushes (default: 60)
 
     # Metrics HTTP submission settings
-    attr_accessor :metrics_endpoint    # URL of the Caboose metrics service
-    attr_accessor :metrics_api_key     # API key for authentication
+    attr_accessor :url        # URL of the Caboose metrics service
+    attr_accessor :key        # API key for authentication
     attr_accessor :metrics_timeout     # HTTP timeout in seconds (default: 5)
     attr_accessor :metrics_gzip        # Whether to gzip payloads (default: true)
 
@@ -42,16 +42,16 @@ module Caboose
       @metrics_flush_interval = 60 # seconds
 
       # Metrics HTTP submission defaults
-      @metrics_endpoint = ENV["CABOOSE_METRICS_ENDPOINT"]
-      @metrics_api_key = ENV["CABOOSE_METRICS_API_KEY"]
+      @url = ENV["CABOOSE_URL"]
+      @key = ENV["CABOOSE_KEY"]
       @metrics_timeout = 5
       @metrics_gzip = true
     end
 
     # Check if metrics can be submitted (endpoint and API key configured)
     def metrics_submission_configured?
-      !@metrics_endpoint.nil? && !@metrics_endpoint.empty? &&
-        !@metrics_api_key.nil? && !@metrics_api_key.empty?
+      !@url.nil? && !@url.empty? &&
+        !@key.nil? && !@key.empty?
     end
 
     def database_path

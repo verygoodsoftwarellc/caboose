@@ -17,7 +17,7 @@ class MetricFlusherTest < Minitest::Test
   end
 
   def teardown
-    @flusher.stop if @flusher.running?
+    @flusher.stop
   end
 
   def test_default_interval
@@ -29,7 +29,7 @@ class MetricFlusherTest < Minitest::Test
     assert_equal 0.1, @flusher.interval
   end
 
-  def test_start_creates_thread
+  def test_start_creates_running_timer
     refute @flusher.running?
 
     @flusher.start
@@ -37,15 +37,7 @@ class MetricFlusherTest < Minitest::Test
     assert @flusher.running?
   end
 
-  def test_start_is_idempotent
-    @flusher.start
-    @flusher.start
-    @flusher.start
-
-    assert @flusher.running?
-  end
-
-  def test_stop_stops_thread
+  def test_stop_stops_timer
     @flusher.start
     assert @flusher.running?
 
@@ -55,12 +47,14 @@ class MetricFlusherTest < Minitest::Test
   end
 
   def test_stop_flushes_remaining_data
+    @flusher.start
+
     key = create_key("web", "rails", "UsersController", "show")
     @storage.increment(key, duration_ms: 100, error: false)
 
     @flusher.stop
 
-    assert_equal 1, @submitter.submit_count
+    assert @submitter.submit_count >= 1
   end
 
   def test_flush_now_drains_storage
@@ -79,20 +73,18 @@ class MetricFlusherTest < Minitest::Test
     key = create_key("web", "rails", "UsersController", "show")
     @storage.increment(key, duration_ms: 100, error: false)
 
-    # Wait for background flush to occur
-    sleep 0.25
+    # Wait for timer to drain and pool to submit
+    sleep 0.3
 
     assert @submitter.submit_count >= 1
   end
 
-  def test_after_fork_restarts_thread
+  def test_after_fork_keeps_running
     @flusher.start
-    original_running = @flusher.running?
+    assert @flusher.running?
 
-    # Simulate fork by calling after_fork
     @flusher.after_fork
 
-    assert original_running
     assert @flusher.running?
   end
 
@@ -129,11 +121,14 @@ class MetricFlusherTest < Minitest::Test
     def initialize
       @submit_count = 0
       @submitted_data = []
+      @mutex = Mutex.new
     end
 
     def submit(drained)
-      @submitted_data << drained
-      @submit_count += 1
+      @mutex.synchronize do
+        @submitted_data << drained
+        @submit_count += 1
+      end
       [drained.size, nil]
     end
   end

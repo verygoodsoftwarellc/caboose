@@ -78,7 +78,7 @@ module Caboose
     @metric_flusher = flusher
   end
 
-  # Manually flush metrics to database (useful for testing or forced flushes).
+  # Manually flush metrics (useful for testing or forced flushes).
   def flush_metrics
     @metric_flusher&.flush_now || 0
   end
@@ -127,8 +127,8 @@ module Caboose
         # Start background flusher if HTTP submission is configured
         if configuration.metrics_submission_configured?
           submitter = MetricSubmitter.new(
-            endpoint: configuration.metrics_endpoint,
-            api_key: configuration.metrics_api_key
+            endpoint: configuration.url,
+            api_key: configuration.key
           )
           @metric_flusher = MetricFlusher.new(
             storage: @metric_storage,
