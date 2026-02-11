@@ -31,6 +31,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "railties", ">= 7.0"
   spec.add_dependency "activesupport", ">= 7.0"
   spec.add_dependency "actionpack", ">= 7.0"
+  spec.add_dependency "concurrent-ruby", ">= 1.1"
   spec.add_dependency "opentelemetry-sdk"
   spec.add_dependency "opentelemetry-instrumentation-rack"
   spec.add_dependency "opentelemetry-instrumentation-net_http"

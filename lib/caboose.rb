@@ -7,6 +7,12 @@ require "opentelemetry/sdk"
 
 require_relative "caboose/sqlite_exporter"
 require_relative "caboose/source_location"
+require_relative "caboose/metric_key"
+require_relative "caboose/metric_storage"
+require_relative "caboose/metric_span_processor"
+require_relative "caboose/metric_flusher"
+require_relative "caboose/backoff_policy"
+require_relative "caboose/metric_submitter"
 
 module Caboose
   class Error < StandardError; end
@@ -56,6 +62,33 @@ module Caboose
     OpenTelemetry::Common::Utilities.untraced(&block)
   end
 
+  def metric_storage
+    @metric_storage
+  end
+
+  def metric_storage=(storage)
+    @metric_storage = storage
+  end
+
+  def metric_flusher
+    @metric_flusher
+  end
+
+  def metric_flusher=(flusher)
+    @metric_flusher = flusher
+  end
+
+  # Manually flush metrics (useful for testing or forced flushes).
+  def flush_metrics
+    @metric_flusher&.flush_now || 0
+  end
+
+  # Re-initialize metric flusher after fork.
+  # Call this from Puma/Unicorn after_fork hooks.
+  def after_fork
+    @metric_flusher&.after_fork
+  end
+
   # Configure OpenTelemetry with selected instrumentations
   def configure_opentelemetry
     return if @otel_configured
@@ -79,7 +112,35 @@ module Caboose
 
     OpenTelemetry::SDK.configure do |c|
       c.service_name = service_name
-      c.add_span_processor(span_processor)
+
+      # Spans: detailed trace data stored in SQLite
+      if configuration.spans_enabled
+        c.add_span_processor(span_processor)
+      end
+
+      # Metrics: lightweight aggregation in memory, submitted via HTTP periodically
+      if configuration.metrics_enabled
+        @metric_storage = MetricStorage.new
+        metric_processor = MetricSpanProcessor.new(storage: @metric_storage)
+        c.add_span_processor(metric_processor)
+
+        # Start background flusher if HTTP submission is configured
+        if configuration.metrics_submission_configured?
+          submitter = MetricSubmitter.new(
+            endpoint: configuration.url,
+            api_key: configuration.key
+          )
+          @metric_flusher = MetricFlusher.new(
+            storage: @metric_storage,
+            submitter: submitter,
+            interval: configuration.metrics_flush_interval
+          )
+          @metric_flusher.start
+
+          # Ensure graceful shutdown
+          at_exit { @metric_flusher&.stop }
+        end
+      end
 
       # Configure specific instrumentations
       c.use "OpenTelemetry::Instrumentation::Rack",
@@ -98,7 +159,9 @@ module Caboose
 
     # Subscribe to common ActiveSupport notification patterns
     # This captures SQL, cache, mailer, and custom notifications
-    subscribe_to_notifications
+    if configuration.spans_enabled
+      subscribe_to_notifications
+    end
 
     @otel_configured = true
   end
@@ -265,6 +328,9 @@ module Caboose
     @span_processor = nil
     @tracer = nil
     @storage = nil
+    @metric_flusher&.stop
+    @metric_flusher = nil
+    @metric_storage = nil
     @otel_configured = false
   end
 end
