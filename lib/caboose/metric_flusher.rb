@@ -8,9 +8,9 @@ module Caboose
 
     attr_reader :interval
 
-    def initialize(storage:, store:, interval: DEFAULT_INTERVAL)
+    def initialize(storage:, submitter:, interval: DEFAULT_INTERVAL)
       @storage = storage
-      @store = store
+      @submitter = submitter
       @interval = interval
       @mutex = Mutex.new
       @thread = nil
@@ -47,9 +47,16 @@ module Caboose
 
     # Manually trigger a flush (useful for testing or forced flushes).
     def flush_now
-      return 0 unless @storage && @store
+      return 0 unless @storage && @submitter
 
-      @store.flush(@storage)
+      drained = @storage.drain
+      return 0 if drained.empty?
+
+      count, error = @submitter.submit(drained)
+      if error
+        warn "[Caboose] Metric submission error: #{error.message}"
+      end
+      count
     rescue => e
       warn "[Caboose] Metric flush error: #{e.message}"
       0

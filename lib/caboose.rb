@@ -10,9 +10,9 @@ require_relative "caboose/source_location"
 require_relative "caboose/metric_key"
 require_relative "caboose/metric_storage"
 require_relative "caboose/metric_span_processor"
-require_relative "caboose/metric_store"
 require_relative "caboose/metric_flusher"
-require_relative "caboose/metric_rollup"
+require_relative "caboose/backoff_policy"
+require_relative "caboose/metric_submitter"
 
 module Caboose
   class Error < StandardError; end
@@ -70,14 +70,6 @@ module Caboose
     @metric_storage = storage
   end
 
-  def metric_store
-    @metric_store ||= MetricStore.new
-  end
-
-  def metric_store=(store)
-    @metric_store = store
-  end
-
   def metric_flusher
     @metric_flusher
   end
@@ -126,22 +118,28 @@ module Caboose
         c.add_span_processor(span_processor)
       end
 
-      # Metrics: lightweight aggregation in memory, flushed to database periodically
+      # Metrics: lightweight aggregation in memory, submitted via HTTP periodically
       if configuration.metrics_enabled
         @metric_storage = MetricStorage.new
         metric_processor = MetricSpanProcessor.new(storage: @metric_storage)
         c.add_span_processor(metric_processor)
 
-        # Start background flusher
-        @metric_flusher = MetricFlusher.new(
-          storage: @metric_storage,
-          store: metric_store,
-          interval: configuration.metrics_flush_interval
-        )
-        @metric_flusher.start
+        # Start background flusher if HTTP submission is configured
+        if configuration.metrics_submission_configured?
+          submitter = MetricSubmitter.new(
+            endpoint: configuration.metrics_endpoint,
+            api_key: configuration.metrics_api_key
+          )
+          @metric_flusher = MetricFlusher.new(
+            storage: @metric_storage,
+            submitter: submitter,
+            interval: configuration.metrics_flush_interval
+          )
+          @metric_flusher.start
 
-        # Ensure graceful shutdown
-        at_exit { @metric_flusher&.stop }
+          # Ensure graceful shutdown
+          at_exit { @metric_flusher&.stop }
+        end
       end
 
       # Configure specific instrumentations
@@ -333,7 +331,6 @@ module Caboose
     @metric_flusher&.stop
     @metric_flusher = nil
     @metric_storage = nil
-    @metric_store = nil
     @otel_configured = false
   end
 end

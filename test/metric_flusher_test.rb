@@ -8,10 +8,10 @@ require "caboose/metric_flusher"
 class MetricFlusherTest < Minitest::Test
   def setup
     @storage = Caboose::MetricStorage.new
-    @store = MockMetricStore.new
+    @submitter = MockSubmitter.new
     @flusher = Caboose::MetricFlusher.new(
       storage: @storage,
-      store: @store,
+      submitter: @submitter,
       interval: 0.1 # 100ms for fast tests
     )
   end
@@ -21,7 +21,7 @@ class MetricFlusherTest < Minitest::Test
   end
 
   def test_default_interval
-    flusher = Caboose::MetricFlusher.new(storage: @storage, store: @store)
+    flusher = Caboose::MetricFlusher.new(storage: @storage, submitter: @submitter)
     assert_equal 60, flusher.interval
   end
 
@@ -60,7 +60,7 @@ class MetricFlusherTest < Minitest::Test
 
     @flusher.stop
 
-    assert_equal 1, @store.flush_count
+    assert_equal 1, @submitter.submit_count
   end
 
   def test_flush_now_drains_storage
@@ -82,7 +82,7 @@ class MetricFlusherTest < Minitest::Test
     # Wait for background flush to occur
     sleep 0.25
 
-    assert @store.flush_count >= 1
+    assert @submitter.submit_count >= 1
   end
 
   def test_after_fork_restarts_thread
@@ -97,14 +97,14 @@ class MetricFlusherTest < Minitest::Test
   end
 
   def test_flush_now_handles_nil_storage
-    flusher = Caboose::MetricFlusher.new(storage: nil, store: @store, interval: 1)
+    flusher = Caboose::MetricFlusher.new(storage: nil, submitter: @submitter, interval: 1)
     count = flusher.flush_now
 
     assert_equal 0, count
   end
 
-  def test_flush_now_handles_nil_store
-    flusher = Caboose::MetricFlusher.new(storage: @storage, store: nil, interval: 1)
+  def test_flush_now_handles_nil_submitter
+    flusher = Caboose::MetricFlusher.new(storage: @storage, submitter: nil, interval: 1)
     count = flusher.flush_now
 
     assert_equal 0, count
@@ -122,20 +122,19 @@ class MetricFlusherTest < Minitest::Test
     )
   end
 
-  # Mock store for testing
-  class MockMetricStore
-    attr_reader :flush_count, :flushed_data
+  # Mock submitter for testing
+  class MockSubmitter
+    attr_reader :submit_count, :submitted_data
 
     def initialize
-      @flush_count = 0
-      @flushed_data = []
+      @submit_count = 0
+      @submitted_data = []
     end
 
-    def flush(storage)
-      data = storage.drain
-      @flushed_data << data
-      @flush_count += 1
-      data.size
+    def submit(drained)
+      @submitted_data << drained
+      @submit_count += 1
+      [drained.size, nil]
     end
   end
 end

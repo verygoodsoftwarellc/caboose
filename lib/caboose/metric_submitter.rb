@@ -34,6 +34,17 @@ module Caboose
       end
     end
 
+    class ClientError < StandardError
+      attr_reader :request_id, :response_code, :response_body
+
+      def initialize(message, request_id:, response_code: nil, response_body: nil)
+        @request_id = request_id
+        @response_code = response_code
+        @response_body = response_body
+        super(message)
+      end
+    end
+
     attr_reader :endpoint, :api_key, :backoff_policy
 
     def initialize(endpoint:, api_key:, backoff_policy: nil, open_timeout: nil, read_timeout: nil, write_timeout: nil)
@@ -139,7 +150,12 @@ module Caboose
       end
 
       # Non-retriable client errors (4xx except 429)
-      [response, false]
+      raise ClientError.new(
+        "Client error: #{code}",
+        request_id: request_id,
+        response_code: code,
+        response_body: response.body
+      )
     end
 
     def retry_with_backoff(max_attempts)
