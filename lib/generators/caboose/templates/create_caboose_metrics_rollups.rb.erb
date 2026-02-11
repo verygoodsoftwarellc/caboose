@@ -1,0 +1,51 @@
+# frozen_string_literal: true
+
+class CreateCabooseMetricsRollups < ActiveRecord::Migration<%= migration_version %>
+  def change
+    # Hourly rollup table
+    create_table :caboose_metrics_hours do |t|
+      t.datetime :bucket, null: false
+      t.string :namespace, null: false, limit: 50
+      t.string :service, null: false, limit: 100
+      t.string :target, null: false, default: "", limit: 255
+      t.string :operation, null: false, limit: 100
+      t.bigint :count, null: false, default: 0
+      t.bigint :sum_ms, null: false, default: 0
+      t.bigint :error_count, null: false, default: 0
+
+      t.timestamps
+    end
+
+    add_index :caboose_metrics_hours,
+      [:bucket, :namespace, :service, :target, :operation],
+      unique: true,
+      name: "index_caboose_metrics_hours_unique_key"
+
+    add_index :caboose_metrics_hours, :bucket
+    add_index :caboose_metrics_hours, :namespace
+    add_index :caboose_metrics_hours, [:namespace, :service]
+
+    # Daily rollup table
+    create_table :caboose_metrics_days do |t|
+      t.date :bucket, null: false
+      t.string :namespace, null: false, limit: 50
+      t.string :service, null: false, limit: 100
+      t.string :target, null: false, default: "", limit: 255
+      t.string :operation, null: false, limit: 100
+      t.bigint :count, null: false, default: 0
+      t.bigint :sum_ms, null: false, default: 0
+      t.bigint :error_count, null: false, default: 0
+
+      t.timestamps
+    end
+
+    add_index :caboose_metrics_days,
+      [:bucket, :namespace, :service, :target, :operation],
+      unique: true,
+      name: "index_caboose_metrics_days_unique_key"
+
+    add_index :caboose_metrics_days, :bucket
+    add_index :caboose_metrics_days, :namespace
+    add_index :caboose_metrics_days, [:namespace, :service]
+  end
+end

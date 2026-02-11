@@ -12,6 +12,7 @@ require_relative "caboose/metric_storage"
 require_relative "caboose/metric_span_processor"
 require_relative "caboose/metric_store"
 require_relative "caboose/metric_flusher"
+require_relative "caboose/metric_rollup"
 
 module Caboose
   class Error < StandardError; end
