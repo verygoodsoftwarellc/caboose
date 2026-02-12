@@ -4,6 +4,11 @@ module Caboose
   class Engine < ::Rails::Engine
     isolate_namespace Caboose
 
+    # Load secrets from Rails credentials if not already set via ENV
+    initializer "caboose.defaults", before: :load_config_initializers do |app|
+      ENV["CABOOSE_KEY"] ||= app.credentials.dig(:caboose, :key)
+    end
+
     # Serve static assets from the engine's public directory
     initializer "caboose.static_assets" do |app|
       app.middleware.use(
