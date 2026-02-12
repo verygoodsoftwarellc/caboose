@@ -18,13 +18,31 @@ module Caboose
       setup_database
     end
 
-    def export(span_datas, timeout: nil)
-      @mutex.synchronize do
-        span_datas.each do |span_data|
-          next if should_ignore_span?(span_data)
+    # Maximum number of retry attempts when the database is busy.
+    # Mirrors ActiveRecord's retry strategy for SQLite.
+    MAX_RETRIES = 3
 
-          create_span(span_data)
+    def export(span_datas, timeout: nil)
+      retries = 0
+
+      begin
+        @mutex.synchronize do
+          connection.transaction do
+            span_datas.each do |span_data|
+              next if should_ignore_span?(span_data)
+
+              create_span(span_data)
+            end
+          end
         end
+      rescue ::SQLite3::BusyException
+        retries += 1
+        if retries <= MAX_RETRIES
+          sleep 0.1 * retries
+          retry
+        end
+        warn "[Caboose] SQLite export error: database is busy after #{MAX_RETRIES} retries"
+        return FAILURE
       end
 
       # Periodically prune old data
@@ -141,8 +159,7 @@ module Caboose
     def setup_database
       @mutex.synchronize do
         db = connection
-        db.execute("PRAGMA journal_mode=WAL")
-        db.execute("PRAGMA synchronous=NORMAL")
+        configure_pragmas(db)
 
         db.execute(<<~SQL)
           CREATE TABLE IF NOT EXISTS caboose_spans (
@@ -216,12 +233,24 @@ module Caboose
       end
     end
 
+    # Applies the same SQLite pragmas that ActiveRecord uses for good
+    # concurrency and performance with threaded/multi-process access.
+    def configure_pragmas(db)
+      db.execute("PRAGMA journal_mode=WAL")
+      db.execute("PRAGMA synchronous=NORMAL")
+      db.execute("PRAGMA mmap_size=134217728")        # 128MB
+      db.execute("PRAGMA journal_size_limit=67108864") # 64MB
+      db.execute("PRAGMA cache_size=2000")
+    end
+
     def connection
       key = :"caboose_sqlite_db_#{@database_path.hash}"
       Thread.current[key] ||= begin
         dir = File.dirname(@database_path)
         FileUtils.mkdir_p(dir) unless File.directory?(dir)
-        ::SQLite3::Database.new(@database_path, results_as_hash: true)
+        db = ::SQLite3::Database.new(@database_path, results_as_hash: true)
+        db.busy_timeout = 5000
+        db
       end
     end
   end

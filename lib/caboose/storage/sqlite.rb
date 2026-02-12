@@ -611,8 +611,7 @@ module Caboose
         # The SQLiteExporter creates the tables, but we ensure they exist here too
         @mutex.synchronize do
           db = connection
-          db.execute("PRAGMA journal_mode=WAL")
-          db.execute("PRAGMA synchronous=NORMAL")
+          configure_pragmas(db)
 
           db.execute(<<~SQL)
             CREATE TABLE IF NOT EXISTS caboose_spans (
@@ -668,11 +667,23 @@ module Caboose
         end
       end
 
+      # Applies the same SQLite pragmas that ActiveRecord uses for good
+      # concurrency and performance with threaded/multi-process access.
+      def configure_pragmas(db)
+        db.execute("PRAGMA journal_mode=WAL")
+        db.execute("PRAGMA synchronous=NORMAL")
+        db.execute("PRAGMA mmap_size=134217728")        # 128MB
+        db.execute("PRAGMA journal_size_limit=67108864") # 64MB
+        db.execute("PRAGMA cache_size=2000")
+      end
+
       def connection
         Thread.current[:caboose_storage_db] ||= begin
           dir = File.dirname(@database_path)
           FileUtils.mkdir_p(dir) unless File.directory?(dir)
-          ::SQLite3::Database.new(@database_path, results_as_hash: true)
+          db = ::SQLite3::Database.new(@database_path, results_as_hash: true)
+          db.busy_timeout = 5000
+          db
         end
       end
 
