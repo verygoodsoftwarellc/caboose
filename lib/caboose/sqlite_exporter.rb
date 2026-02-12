@@ -16,6 +16,7 @@ module Caboose
       @database_path = database_path
       @mutex = Mutex.new
       setup_database
+      close_connection # avoid inheriting connection across fork
     end
 
     # Maximum number of retry attempts when the database is busy.
@@ -243,14 +244,25 @@ module Caboose
       db.execute("PRAGMA cache_size=2000")
     end
 
+    def connection_key
+      :"caboose_sqlite_db_#{@database_path.hash}"
+    end
+
     def connection
-      key = :"caboose_sqlite_db_#{@database_path.hash}"
-      Thread.current[key] ||= begin
+      Thread.current[connection_key] ||= begin
         dir = File.dirname(@database_path)
         FileUtils.mkdir_p(dir) unless File.directory?(dir)
         db = ::SQLite3::Database.new(@database_path, results_as_hash: true)
         db.busy_timeout = 5000
         db
+      end
+    end
+
+    def close_connection
+      key = connection_key
+      if db = Thread.current[key]
+        db.close rescue nil
+        Thread.current[key] = nil
       end
     end
   end

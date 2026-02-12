@@ -20,6 +20,7 @@ module Caboose
         @database_path = database_path
         @mutex = Mutex.new
         setup_database
+        close_connection # avoid inheriting connection across fork
       end
 
       # List root spans that are HTTP requests (for the requests index)
@@ -684,6 +685,13 @@ module Caboose
           db = ::SQLite3::Database.new(@database_path, results_as_hash: true)
           db.busy_timeout = 5000
           db
+        end
+      end
+
+      def close_connection
+        if db = Thread.current[:caboose_storage_db]
+          db.close rescue nil
+          Thread.current[:caboose_storage_db] = nil
         end
       end
 
