@@ -42,7 +42,7 @@ module Caboose
       @metrics_flush_interval = 60 # seconds
 
       # Metrics HTTP submission defaults
-      @url = ENV.fetch("CABOOSE_URL", "https://caboose.dev")
+      @url = ENV.fetch("CABOOSE_URL", credentials_url || "https://caboose.dev")
       @key = ENV["CABOOSE_KEY"]
       @metrics_timeout = 5
       @metrics_gzip = true
@@ -70,6 +70,13 @@ module Caboose
       defined?(Rails) && Rails.env.production?
     rescue StandardError
       false
+    end
+
+    def credentials_url
+      return nil unless defined?(Rails) && Rails.application&.credentials
+      Rails.application.credentials.dig(:caboose, :url)
+    rescue StandardError
+      nil
     end
 
     def default_database_path
