@@ -110,6 +110,10 @@ module Caboose
     require "opentelemetry-instrumentation-action_view" if defined?(ActionView)
     require "opentelemetry-instrumentation-active_job" if defined?(ActiveJob)
 
+    # Tell the SDK not to try configuring OTLP from env vars.
+    # Caboose manages its own exporters (SQLite for spans, HTTP for metrics).
+    ENV["OTEL_TRACES_EXPORTER"] ||= "none"
+
     OpenTelemetry::SDK.configure do |c|
       c.service_name = service_name
 
