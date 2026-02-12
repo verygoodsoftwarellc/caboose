@@ -42,7 +42,7 @@ module Caboose
       @metrics_flush_interval = 60 # seconds
 
       # Metrics HTTP submission defaults
-      @url = ENV["CABOOSE_URL"]
+      @url = ENV.fetch("CABOOSE_URL", "https://caboose.dev")
       @key = ENV["CABOOSE_KEY"]
       @metrics_timeout = 5
       @metrics_gzip = true
