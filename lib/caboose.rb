@@ -103,12 +103,15 @@ module Caboose
     @metric_flusher&.after_fork
   end
 
-  # Configure OpenTelemetry with selected instrumentations
+  # Configure OpenTelemetry SDK and instrumentations. Must run before the
+  # middleware stack is built so Rack/ActionPack can insert their middleware.
+  # Note: metrics flusher is started separately via start_metrics_flusher
+  # after user initializers have run.
   def configure_opentelemetry
     return if @otel_configured
 
     # Suppress noisy OTel INFO logs
-    OpenTelemetry.logger = Logger.new($stdout, level: Logger::WARN)
+    OpenTelemetry.logger = Logger.new(STDOUT, level: Logger::WARN)
 
     service_name = if defined?(Rails) && Rails.application
       Rails.application.class.module_parent_name.underscore rescue "rails_app"
@@ -128,9 +131,7 @@ module Caboose
     # Caboose manages its own exporters (SQLite for spans, HTTP for metrics).
     ENV["OTEL_TRACES_EXPORTER"] ||= "none"
 
-    log "Configuring OpenTelemetry (service=#{service_name} spans=#{configuration.spans_enabled} metrics=#{configuration.metrics_enabled})"
-    log "Database: #{configuration.database_path}" if configuration.spans_enabled
-    log "Metrics endpoint: #{configuration.url} (key #{configuration.key ? 'present' : 'missing'})" if configuration.metrics_enabled
+    log "Configuring OpenTelemetry (service=#{service_name})"
 
     OpenTelemetry::SDK.configure do |c|
       c.service_name = service_name
@@ -138,33 +139,7 @@ module Caboose
       # Spans: detailed trace data stored in SQLite
       if configuration.spans_enabled
         c.add_span_processor(span_processor)
-      end
-
-      # Metrics: lightweight aggregation in memory, submitted via HTTP periodically
-      if configuration.metrics_enabled
-        @metric_storage = MetricStorage.new
-        metric_processor = MetricSpanProcessor.new(storage: @metric_storage)
-        c.add_span_processor(metric_processor)
-
-        # Start background flusher if HTTP submission is configured
-        if configuration.metrics_submission_configured?
-          submitter = MetricSubmitter.new(
-            endpoint: configuration.url,
-            api_key: configuration.key
-          )
-          @metric_flusher = MetricFlusher.new(
-            storage: @metric_storage,
-            submitter: submitter,
-            interval: configuration.metrics_flush_interval
-          )
-          @metric_flusher.start
-          log "Metrics flusher started (interval=#{configuration.metrics_flush_interval}s)"
-
-          # Ensure graceful shutdown (metrics flusher has its own at_exit logging)
-          at_exit { @metric_flusher&.stop }
-        else
-          log "Metrics submission not configured (missing url or key)"
-        end
+        log "Spans enabled (database=#{configuration.database_path})"
       end
 
       # Configure specific instrumentations
@@ -199,6 +174,36 @@ module Caboose
     end
 
     @otel_configured = true
+  end
+
+  # Start the metrics flusher. Called from config.after_initialize so
+  # user configuration (metrics_enabled, flush_interval, etc.) is applied.
+  def start_metrics_flusher
+    return unless configuration.metrics_enabled
+
+    @metric_storage ||= MetricStorage.new
+    metric_processor = MetricSpanProcessor.new(storage: @metric_storage)
+    OpenTelemetry.tracer_provider.add_span_processor(metric_processor)
+
+    log "Metrics enabled (endpoint=#{configuration.url} key=#{configuration.key ? 'present' : 'missing'})"
+
+    if configuration.metrics_submission_configured?
+      submitter = MetricSubmitter.new(
+        endpoint: configuration.url,
+        api_key: configuration.key
+      )
+      @metric_flusher = MetricFlusher.new(
+        storage: @metric_storage,
+        submitter: submitter,
+        interval: configuration.metrics_flush_interval
+      )
+      @metric_flusher.start
+      log "Metrics flusher started (interval=#{configuration.metrics_flush_interval}s)"
+
+      at_exit { @metric_flusher&.stop }
+    else
+      log "Metrics submission not configured (missing url or key)"
+    end
   end
 
   # Payload transformers for different notification types

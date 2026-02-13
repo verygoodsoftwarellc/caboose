@@ -19,10 +19,16 @@ module Caboose
       )
     end
 
-    # Configure OpenTelemetry BEFORE middleware stack is built
-    # This is critical - Rack instrumentation needs to insert its middleware
+    # Phase 1: Configure OTel SDK and instrumentations before middleware is
+    # built so Rack/ActionPack can insert their middleware.
     initializer "caboose.opentelemetry", before: :build_middleware_stack do
       Caboose.configure_opentelemetry
+    end
+
+    # Phase 2: Start the metrics flusher after all initializers have run
+    # so user config (metrics_enabled, flush_interval, etc.) is applied.
+    config.after_initialize do
+      Caboose.start_metrics_flusher
     end
 
     # Auto-mount routes in development/test
