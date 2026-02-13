@@ -33,10 +33,18 @@ module Caboose
     configuration.enabled
   end
 
+  def logger
+    @logger ||= Logger.new(STDOUT)
+  end
+
+  def logger=(logger)
+    @logger = logger
+  end
+
   def log(message)
     return unless configuration.debug
 
-    configuration.logger.info("[Caboose] #{message}")
+    logger.info("[Caboose] #{message}")
   end
 
   def exporter

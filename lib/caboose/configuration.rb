@@ -30,9 +30,6 @@ module Caboose
     # Set CABOOSE_DEBUG=1 or configure debug: true in your initializer.
     attr_accessor :debug
 
-    # Logger instance used for debug output. Defaults to Rails.logger or stdout.
-    attr_writer :logger
-
     def initialize
       @enabled = true
       @retention_hours = 24
@@ -54,14 +51,6 @@ module Caboose
       @key = ENV["CABOOSE_KEY"]
       @metrics_timeout = 5
       @metrics_gzip = true
-    end
-
-    def logger
-      @logger ||= if defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger
-        Rails.logger
-      else
-        Logger.new($stdout)
-      end
     end
 
     # Check if metrics can be submitted (endpoint and API key configured)
