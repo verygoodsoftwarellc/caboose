@@ -18,8 +18,9 @@ module Caboose
     # Called when a span starts - no-op for metrics
     def on_start(span, parent_context); end
 
-    # Called when a span ends - extract and record metrics
-    def on_end(span)
+    # Called when a span ends - extract and record metrics.
+    # OTel SDK 1.10+ calls on_finish; older versions call on_end.
+    def on_finish(span)
       return unless span.end_timestamp && span.start_timestamp
 
       if web_request?(span)
@@ -36,6 +37,8 @@ module Caboose
     def force_flush(timeout: nil)
       OpenTelemetry::SDK::Trace::Export::SUCCESS
     end
+
+    alias_method :on_end, :on_finish
 
     def shutdown(timeout: nil)
       OpenTelemetry::SDK::Trace::Export::SUCCESS
