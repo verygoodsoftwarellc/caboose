@@ -13,6 +13,7 @@ module Caboose
 
     def initialize(storage:)
       @storage = storage
+      @pid = $$
     end
 
     # Called when a span starts - no-op for metrics
@@ -22,6 +23,8 @@ module Caboose
     # OTel SDK 1.10+ calls on_finish; older versions call on_end.
     def on_finish(span)
       return unless span.end_timestamp && span.start_timestamp
+
+      detect_forking
 
       if web_request?(span)
         record_web_metric(span)
@@ -45,6 +48,17 @@ module Caboose
     end
 
     private
+
+    # Detect forking (Puma workers, Passenger, etc.) and restart the
+    # metrics flusher whose timer thread died during fork.
+    # Called on every span end — the same pattern Flipper uses in record().
+    def detect_forking
+      if @pid != $$
+        Caboose.log "Fork detected (was=#{@pid} now=#{$$}), restarting metrics flusher"
+        @pid = $$
+        Caboose.after_fork
+      end
+    end
 
     # Web requests: root server spans (no parent or parent is external)
     def web_request?(span)

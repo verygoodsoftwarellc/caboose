@@ -21,9 +21,12 @@ module Caboose
       @interval = interval
       @shutdown_timeout = shutdown_timeout
       @pid = $$
+      @stopped = false
     end
 
     def start
+      @stopped = false
+
       @pool = Concurrent::FixedThreadPool.new(1, {
         max_queue: 20,
         fallback_policy: :discard,
@@ -37,6 +40,10 @@ module Caboose
     end
 
     def stop
+      return if @stopped
+
+      @stopped = true
+
       Caboose.log "Shutting down metrics flusher, draining remaining metrics..."
 
       if @timer
@@ -56,6 +63,7 @@ module Caboose
     end
 
     def restart
+      @stopped = false
       stop
       start
     end
@@ -81,23 +89,17 @@ module Caboose
       @timer&.running? || false
     end
 
-    # Re-initialize after fork (call from Puma/Unicorn after_fork hooks).
+    # Re-initialize after fork. Called automatically by MetricSpanProcessor
+    # on first span in the new process, or manually from Puma/Unicorn
+    # after_fork hooks.
     def after_fork
-      detect_forking
+      @pid = $$
+      restart
     end
 
     private
 
-    def detect_forking
-      if @pid != $$
-        restart
-        @pid = $$
-      end
-    end
-
     def post_to_pool
-      detect_forking
-
       drained = @storage.drain
       if drained.empty?
         Caboose.log "No metrics to flush"
