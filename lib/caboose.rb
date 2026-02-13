@@ -210,6 +210,7 @@ module Caboose
   NOTIFICATION_TRANSFORMERS = {
     "sql.active_record" => ->(payload) {
       attrs = {}
+      attrs["db.system"] = payload[:connection]&.adapter_name&.downcase rescue nil
       attrs["db.statement"] = payload[:sql] if payload[:sql]
       attrs["name"] = payload[:name] if payload[:name]
       attrs["db.name"] = payload[:connection]&.pool&.db_config&.name rescue nil
