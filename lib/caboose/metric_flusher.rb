@@ -95,8 +95,12 @@ module Caboose
       detect_forking
 
       drained = @storage.drain
-      return if drained.empty?
+      if drained.empty?
+        Caboose.log "No metrics to flush"
+        return
+      end
 
+      Caboose.log "Drained #{drained.size} metric keys for submission"
       @pool.post { submit_to_cloud(drained) }
     rescue => e
       warn "[Caboose] Metric drain error: #{e.message}"

@@ -25,6 +25,7 @@ module Caboose
 
     def export(span_datas, timeout: nil)
       retries = 0
+      exported = 0
 
       begin
         @mutex.synchronize do
@@ -33,6 +34,7 @@ module Caboose
               next if should_ignore_span?(span_data)
 
               create_span(span_data)
+              exported += 1
             end
           end
         end
@@ -45,6 +47,8 @@ module Caboose
         warn "[Caboose] SQLite export error: database is busy after #{MAX_RETRIES} retries"
         return FAILURE
       end
+
+      Caboose.log "Exported #{exported} spans to SQLite" if exported > 0
 
       # Periodically prune old data
       maybe_prune

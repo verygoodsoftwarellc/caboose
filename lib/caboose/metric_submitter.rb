@@ -62,6 +62,8 @@ module Caboose
       return [0, nil] if drained.empty?
 
       request_id = SecureRandom.uuid
+      Caboose.log "Submitting #{drained.size} metrics to #{@endpoint} (request_id=#{request_id})"
+
       body = build_body(drained, request_id)
       return [0, nil] if body.nil?
 
@@ -69,8 +71,10 @@ module Caboose
       response, error = retry_with_backoff(MAX_RETRIES) { post(body, request_id) }
 
       if error
+        Caboose.log "Submission failed: #{error.message} (request_id=#{request_id})"
         [0, error]
       else
+        Caboose.log "Submission succeeded: #{response.code} (request_id=#{request_id})"
         [drained.size, nil]
       end
     end

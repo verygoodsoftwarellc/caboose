@@ -33,6 +33,12 @@ module Caboose
     configuration.enabled
   end
 
+  def log(message)
+    return unless configuration.debug
+
+    configuration.logger.info("[Caboose] #{message}")
+  end
+
   def exporter
     @exporter ||= SQLiteExporter.new(configuration.database_path)
   end
@@ -114,6 +120,10 @@ module Caboose
     # Caboose manages its own exporters (SQLite for spans, HTTP for metrics).
     ENV["OTEL_TRACES_EXPORTER"] ||= "none"
 
+    log "Configuring OpenTelemetry (service=#{service_name} spans=#{configuration.spans_enabled} metrics=#{configuration.metrics_enabled})"
+    log "Database: #{configuration.database_path}" if configuration.spans_enabled
+    log "Metrics endpoint: #{configuration.url} (key #{configuration.key ? 'present' : 'missing'})" if configuration.metrics_enabled
+
     OpenTelemetry::SDK.configure do |c|
       c.service_name = service_name
 
@@ -140,9 +150,12 @@ module Caboose
             interval: configuration.metrics_flush_interval
           )
           @metric_flusher.start
+          log "Metrics flusher started (interval=#{configuration.metrics_flush_interval}s)"
 
           # Ensure graceful shutdown
           at_exit { @metric_flusher&.stop }
+        else
+          log "Metrics submission not configured (missing url or key)"
         end
       end
 
