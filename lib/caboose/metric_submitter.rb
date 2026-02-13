@@ -47,9 +47,11 @@ module Caboose
 
     attr_reader :endpoint, :api_key, :backoff_policy
 
-    def initialize(endpoint:, api_key:, backoff_policy: nil, open_timeout: nil, read_timeout: nil, write_timeout: nil)
-      @endpoint = URI(endpoint)
+    def initialize(endpoint:, api_key:, project: nil, environment: nil, backoff_policy: nil, open_timeout: nil, read_timeout: nil, write_timeout: nil)
+      @endpoint = URI("#{endpoint.to_s.chomp('/')}/api/metrics")
       @api_key = api_key
+      @project = project || default_project
+      @environment = environment || default_environment
       @backoff_policy = backoff_policy || BackoffPolicy.new
       @open_timeout = open_timeout || DEFAULT_OPEN_TIMEOUT
       @read_timeout = read_timeout || DEFAULT_READ_TIMEOUT
@@ -98,6 +100,8 @@ module Caboose
       payload = {
         request_id: request_id,
         schema_version: SCHEMA_VERSION,
+        project: @project,
+        environment: @environment,
         metrics: metrics
       }
 
@@ -204,6 +208,22 @@ module Caboose
     def local_endpoint?
       host = @endpoint.host
       host == "localhost" || host == "127.0.0.1" || host == "::1"
+    end
+
+    def default_project
+      if defined?(Rails) && Rails.application
+        Rails.application.class.module_parent_name.underscore rescue "rails_app"
+      else
+        "app"
+      end
+    end
+
+    def default_environment
+      if defined?(Rails)
+        Rails.env.to_s
+      else
+        ENV.fetch("RACK_ENV", "development")
+      end
     end
   end
 end
