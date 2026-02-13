@@ -37,6 +37,8 @@ module Caboose
     end
 
     def stop
+      Caboose.log "Shutting down metrics flusher, draining remaining metrics..."
+
       if @timer
         @timer.shutdown
         @timer.wait_for_termination(1)
@@ -49,6 +51,8 @@ module Caboose
         pool_terminated = @pool.wait_for_termination(@shutdown_timeout)
         @pool.kill unless pool_terminated
       end
+
+      Caboose.log "Metrics flusher stopped"
     end
 
     def restart

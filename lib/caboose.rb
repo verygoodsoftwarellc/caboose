@@ -152,7 +152,7 @@ module Caboose
           @metric_flusher.start
           log "Metrics flusher started (interval=#{configuration.metrics_flush_interval}s)"
 
-          # Ensure graceful shutdown
+          # Ensure graceful shutdown (metrics flusher has its own at_exit logging)
           at_exit { @metric_flusher&.stop }
         else
           log "Metrics submission not configured (missing url or key)"
@@ -178,6 +178,16 @@ module Caboose
     # This captures SQL, cache, mailer, and custom notifications
     if configuration.spans_enabled
       subscribe_to_notifications
+    end
+
+    at_exit do
+      log "Shutting down..."
+      if configuration.spans_enabled
+        span_processor.force_flush
+        span_processor.shutdown
+        log "Span processor flushed and stopped"
+      end
+      log "Shutdown complete"
     end
 
     @otel_configured = true
