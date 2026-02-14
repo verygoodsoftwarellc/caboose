@@ -1,84 +1,21 @@
-<style>
-  .filters {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-
-  .filter-select {
-    padding: 6px 12px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-card);
-    font-size: 13px;
-    color: var(--text-primary);
-    cursor: pointer;
-    min-width: 100px;
-  }
-
-  .filter-select:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-
-  .span-name {
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
-  .pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px;
-    border-top: 1px solid var(--border);
-  }
-
-  .pagination-link {
-    padding: 8px 16px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text-primary);
-    text-decoration: none;
-    font-size: 13px;
-  }
-
-  .pagination-link:hover {
-    background: var(--bg-body);
-  }
-
-  .pagination-info {
-    font-size: 13px;
-    color: var(--text-secondary);
-  }
-
-  .pagination-side {
-    min-width: 100px;
-  }
-</style>
-
 <%
   def span_display_info(span, category)
     props = span[:properties] || {}
     case category
     when "queries"
       stmt = props["db.statement"]&.to_s
-      name = props["name"]&.to_s # e.g., "User Load"
-      db_name = props["db.name"]&.to_s # e.g., "primary", "analytics"
-      # Source location: "app/models/user.rb:42"
+      name = props["name"]&.to_s
+      db_name = props["db.name"]&.to_s
       source_loc = if props["code.filepath"] && props["code.lineno"]
         "#{props["code.filepath"]}:#{props["code.lineno"]}"
       end
-      # Build secondary: "User Load · primary · app/models/user.rb:42"
-      secondary = [name.presence, db_name.presence, source_loc].compact.join(" · ").presence
-      # Show SQL as primary, name/db/location as secondary. Fall back to name if no SQL.
+      secondary = [name.presence, db_name.presence, source_loc].compact.join(" \u00b7 ").presence
       if stmt.present?
         { primary: stmt, secondary: secondary }
       elsif name.present?
-        { primary: name, secondary: [db_name.presence, source_loc].compact.join(" · ").presence }
+        { primary: name, secondary: [db_name.presence, source_loc].compact.join(" \u00b7 ").presence }
       else
-        { primary: span[:name], secondary: [db_name.presence, source_loc].compact.join(" · ").presence }
+        { primary: span[:name], secondary: [db_name.presence, source_loc].compact.join(" \u00b7 ").presence }
       end
     when "cache"
       key = props["key"]&.to_s
@@ -92,10 +29,7 @@
     when "http"
       full_url = props["http.url"] || ""
       target = props["http.target"] || ""
-      # Try to get host from various OpenTelemetry attributes
       host = props["http.host"] || props["net.peer.name"] || props["peer.service"]
-
-      # Extract domain and path from URL
       uri = URI.parse(full_url) rescue nil
       if uri && uri.host
         domain = uri.host
@@ -132,7 +66,6 @@
       else
         span[:name]
       end
-      # Get first line of backtrace that's from app code (not gems/framework)
       stacktrace = span[:exception_stacktrace].to_s
       first_app_line = stacktrace.split("\n").find { |line| line.include?("/app/") } || stacktrace.split("\n").first
       secondary = first_app_line&.strip.to_s.truncate(200)
@@ -159,11 +92,9 @@
     <div class="card-body">
       <% if @spans.blank? %>
         <div class="empty-state">
-          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
+          <div class="empty-state-icon">
+            <i class="bi bi-search" style="font-size: 1.5rem;"></i>
+          </div>
           <h3>No <%= page_title.downcase %> found</h3>
           <p>Data will appear here as your application processes requests.</p>
         </div>

@@ -1,67 +1,3 @@
-<style>
-  .filters {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-
-  .filter-select {
-    padding: 6px 12px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-card);
-    font-size: 13px;
-    color: var(--text-primary);
-    cursor: pointer;
-    min-width: 100px;
-  }
-
-  .filter-select:focus {
-    outline: none;
-    border-color: var(--accent);
-  }
-
-  .filter-select option {
-    padding: 8px;
-  }
-
-  .action-name {
-    font-weight: 600;
-    color: var(--text-primary);
-  }
-
-  .pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px;
-    border-top: 1px solid var(--border);
-  }
-
-  .pagination-link {
-    padding: 8px 16px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    color: var(--text-primary);
-    text-decoration: none;
-    font-size: 13px;
-  }
-
-  .pagination-link:hover {
-    background: var(--bg-body);
-  }
-
-  .pagination-info {
-    font-size: 13px;
-    color: var(--text-secondary);
-  }
-
-  .pagination-side {
-    min-width: 100px;
-  }
-</style>
-
 <div class="page-header">
   <h1 class="page-title"><%= page_title %></h1>
   <div class="filters">
@@ -105,14 +41,9 @@
     <div class="card-body">
       <% if @requests.blank? %>
         <div class="empty-state">
-          <svg class="empty-state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2v4"></path>
-            <path d="m6.8 14-3.5 2"></path>
-            <path d="m20.7 16-3.5-2"></path>
-            <path d="M6.8 10 3.3 8"></path>
-            <path d="m20.7 8-3.5 2"></path>
-            <circle cx="12" cy="12" r="4"></circle>
-          </svg>
+          <div class="empty-state-icon">
+            <i class="bi bi-speedometer2" style="font-size: 1.5rem;"></i>
+          </div>
           <h3>No requests found</h3>
           <p>Data will appear here as your application processes requests.</p>
         </div>
