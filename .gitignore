@@ -12,3 +12,6 @@ Gemfile.lock
 examples/db/*.sqlite3*
 *.DS_Store
 log/*
+.playwright-mcp
+.env
+/db/caboose.sqlite3*

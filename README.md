@@ -19,31 +19,40 @@ Each span shows a waterfall visualization of child operations, making it easy to
 
 ## Installation
 
-Add this line to your application's Gemfile in the development group:
+Add Caboose to your Gemfile:
 
 ```ruby
-group :development do
-  gem "caboose"
-end
+gem "caboose"
 ```
 
-Then execute:
+Then run:
 
 ```bash
 bundle install
+caboose setup
 ```
 
-That's it! Visit `/caboose` in your browser to see the dashboard.
+The setup command will:
 
-### Optional: Generate Configuration
+1. Authenticate with caboose.dev to configure metrics
+2. Create a config initializer with sensible defaults
+3. Update .gitignore
 
-If you want to customize settings, run the install generator:
+Start your Rails server and visit `/caboose` to see the dashboard.
+
+### Manual Configuration
+
+If you prefer to skip the setup wizard, just add the gem and visit `/caboose` in development. The dashboard works out of the box with no configuration needed.
+
+To enable metrics, set `CABOOSE_KEY` in your environment (get one at [caboose.dev](https://caboose.dev)).
+
+### CLI Commands
 
 ```bash
-rails generate caboose:install
+caboose setup    # Authenticate and configure Caboose
+caboose doctor   # Check your setup for issues
+caboose status   # Show current configuration
 ```
-
-This creates `config/initializers/caboose.rb` with commented configuration options.
 
 ## Configuration
 

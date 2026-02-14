@@ -40,10 +40,11 @@ module Caboose
       @debug = ENV["CABOOSE_DEBUG"] == "1"
 
       # Environment-based defaults:
-      # - Development: spans ON (detailed debugging), metrics OFF
-      # - Production: spans OFF (too expensive), metrics ON (lightweight aggregation)
+      # - Development: spans ON (detailed debugging), metrics ON
+      # - Production: spans OFF (too expensive), metrics ON
+      # - Test: spans OFF, metrics OFF
       @spans_enabled = rails_development?
-      @metrics_enabled = rails_production?
+      @metrics_enabled = !rails_test?
       @metrics_flush_interval = 60 # seconds
 
       # Metrics HTTP submission defaults
@@ -71,8 +72,8 @@ module Caboose
       false # Default to false for safety - avoids enabling spans unexpectedly in production
     end
 
-    def rails_production?
-      defined?(Rails) && Rails.env.production?
+    def rails_test?
+      defined?(Rails) && Rails.env.test?
     rescue StandardError
       false
     end
