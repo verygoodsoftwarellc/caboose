@@ -11,6 +11,18 @@ module Caboose
     CLIENT = :client
     CONSUMER = :consumer
 
+    # Cache store class name patterns mapped to short service names
+    CACHE_STORE_MAP = {
+      "redis" => "redis",
+      "mem_cache" => "memcache",
+      "memcache" => "memcache",
+      "dalli" => "memcache",
+      "file" => "file",
+      "memory" => "memory",
+      "null" => "null",
+      "solid_cache" => "solid_cache"
+    }.freeze
+
     def initialize(storage:)
       @storage = storage
       @pid = $$
@@ -34,6 +46,10 @@ module Caboose
         record_db_metric(span)
       elsif http_client_span?(span)
         record_http_metric(span)
+      elsif cache_span?(span)
+        record_cache_metric(span)
+      elsif view_span?(span)
+        record_view_metric(span)
       end
     end
 
@@ -79,6 +95,18 @@ module Caboose
     def http_client_span?(span)
       span.kind == CLIENT &&
         (span.attributes["http.method"] || span.attributes["http.request.method"])
+    end
+
+    # Cache spans: ActiveSupport cache notification spans
+    def cache_span?(span)
+      name = span.name.to_s
+      name.start_with?("cache_") && name.end_with?(".active_support")
+    end
+
+    # View spans: ActionView render notification spans
+    def view_span?(span)
+      name = span.name.to_s
+      name.start_with?("render_") && name.end_with?(".action_view")
     end
 
     def root_span?(span)
@@ -159,6 +187,40 @@ module Caboose
         key,
         duration_ms: duration_ms(span),
         error: http_error?(span)
+      )
+    end
+
+    def record_cache_metric(span)
+      operation = extract_cache_operation(span)
+
+      key = MetricKey.new(
+        bucket: bucket_time(span),
+        namespace: "cache",
+        service: extract_cache_store(span),
+        target: operation,
+        operation: operation
+      )
+
+      @storage.increment(
+        key,
+        duration_ms: duration_ms(span),
+        error: span_error?(span)
+      )
+    end
+
+    def record_view_metric(span)
+      key = MetricKey.new(
+        bucket: bucket_time(span),
+        namespace: "view",
+        service: "actionview",
+        target: extract_view_template(span),
+        operation: extract_view_operation(span)
+      )
+
+      @storage.increment(
+        key,
+        duration_ms: duration_ms(span),
+        error: span_error?(span)
       )
     end
 
@@ -299,6 +361,57 @@ module Caboose
       URI.parse(url.to_s).path
     rescue URI::InvalidURIError
       nil
+    end
+
+    def extract_cache_store(span)
+      store = span.attributes["store"].to_s
+      return "unknown" if store.empty?
+
+      downcased = store.downcase
+      CACHE_STORE_MAP.each do |pattern, name|
+        return name if downcased.include?(pattern)
+      end
+
+      # Fallback: last segment, strip Store/Cache suffixes
+      short = store.split("::").last
+                   .gsub(/CacheStore$|Store$|Cache$/, "")
+                   .downcase
+      short.empty? ? "unknown" : short
+    end
+
+    def extract_cache_operation(span)
+      base_op = span.name.to_s
+                    .delete_prefix("cache_")
+                    .delete_suffix(".active_support")
+
+      case base_op
+      when "read"
+        span.attributes["hit"] == true ? "read.hit" : "read.miss"
+      when "exist?"
+        span.attributes["exist"] == true ? "exist.hit" : "exist.miss"
+      else
+        base_op
+      end
+    end
+
+    def extract_view_template(span)
+      identifier = span.attributes["identifier"]
+      return span.attributes["code.filepath"] || "unknown" unless identifier
+
+      path = identifier.to_s
+      if (idx = path.index("app/views/"))
+        path[(idx + "app/views/".length)..]
+      elsif (idx = path.index("app/"))
+        path[(idx + "app/".length)..]
+      else
+        File.basename(path)
+      end
+    end
+
+    def extract_view_operation(span)
+      span.name.to_s
+          .delete_prefix("render_")
+          .delete_suffix(".action_view")
     end
   end
 end

@@ -299,6 +299,317 @@ class MetricSpanProcessorTest < Minitest::Test
     assert_equal "/api/v1/users/search", key.target
   end
 
+  # Cache metric tests
+
+  def test_cache_read_hit_creates_metric
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "cache_read.active_support",
+      attributes: {
+        "key" => "user:12345:stats",
+        "hit" => true,
+        "store" => "ActiveSupport::Cache::RedisCacheStore"
+      },
+      start_ns: 0,
+      end_ns: 2_000_000
+    )
+
+    @processor.on_end(span)
+
+    assert_equal 1, @storage.size
+    key = @storage.drain.keys.first
+    assert_equal "cache", key.namespace
+    assert_equal "redis", key.service
+    assert_equal "read.hit", key.target
+    assert_equal "read.hit", key.operation
+  end
+
+  def test_cache_read_miss_creates_metric
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "cache_read.active_support",
+      attributes: {
+        "key" => "user:12345:stats",
+        "hit" => false,
+        "store" => "ActiveSupport::Cache::RedisCacheStore"
+      },
+      start_ns: 0,
+      end_ns: 2_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "cache", key.namespace
+    assert_equal "read.miss", key.operation
+  end
+
+  def test_cache_write_creates_metric
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "cache_write.active_support",
+      attributes: {
+        "key" => "session:abc123",
+        "store" => "ActiveSupport::Cache::MemCacheStore"
+      },
+      start_ns: 0,
+      end_ns: 3_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "cache", key.namespace
+    assert_equal "memcache", key.service
+    assert_equal "write", key.target
+    assert_equal "write", key.operation
+  end
+
+  def test_cache_delete_creates_metric
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "cache_delete.active_support",
+      attributes: {
+        "key" => "fragment/users/list",
+        "store" => "ActiveSupport::Cache::FileStore"
+      },
+      start_ns: 0,
+      end_ns: 1_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "cache", key.namespace
+    assert_equal "file", key.service
+    assert_equal "delete", key.target
+    assert_equal "delete", key.operation
+  end
+
+  def test_cache_exist_hit_creates_metric
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "cache_exist?.active_support",
+      attributes: {
+        "key" => "lock:job:42",
+        "exist" => true,
+        "store" => "ActiveSupport::Cache::MemoryStore"
+      },
+      start_ns: 0,
+      end_ns: 500_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "cache", key.namespace
+    assert_equal "memory", key.service
+    assert_equal "exist.hit", key.target
+    assert_equal "exist.hit", key.operation
+  end
+
+  def test_cache_exist_miss_creates_metric
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "cache_exist?.active_support",
+      attributes: {
+        "key" => "lock:job:99",
+        "exist" => false,
+        "store" => "ActiveSupport::Cache::MemoryStore"
+      },
+      start_ns: 0,
+      end_ns: 500_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "exist.miss", key.operation
+  end
+
+  def test_cache_fetch_hit_creates_metric
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "cache_fetch_hit.active_support",
+      attributes: {
+        "key" => "api:response:latest",
+        "store" => "ActiveSupport::Cache::RedisCacheStore"
+      },
+      start_ns: 0,
+      end_ns: 1_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "cache", key.namespace
+    assert_equal "redis", key.service
+    assert_equal "fetch_hit", key.target
+    assert_equal "fetch_hit", key.operation
+  end
+
+  def test_cache_unknown_store_fallback
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "cache_read.active_support",
+      attributes: {
+        "key" => "test:key",
+        "hit" => true,
+        "store" => "MyApp::CustomCacheStore"
+      },
+      start_ns: 0,
+      end_ns: 1_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "custom", key.service
+  end
+
+  def test_cache_missing_store_uses_unknown
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "cache_write.active_support",
+      attributes: { "key" => "test:key" },
+      start_ns: 0,
+      end_ns: 1_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "unknown", key.service
+  end
+
+  # View metric tests
+
+  def test_view_template_creates_metric
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "render_template.action_view",
+      attributes: {
+        "identifier" => "/Users/john/myapp/app/views/users/show.html.erb"
+      },
+      start_ns: 0,
+      end_ns: 10_000_000
+    )
+
+    @processor.on_end(span)
+
+    assert_equal 1, @storage.size
+    key = @storage.drain.keys.first
+    assert_equal "view", key.namespace
+    assert_equal "actionview", key.service
+    assert_equal "users/show.html.erb", key.target
+    assert_equal "template", key.operation
+  end
+
+  def test_view_partial_creates_metric
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "render_partial.action_view",
+      attributes: {
+        "identifier" => "/Users/john/myapp/app/views/shared/_header.html.erb"
+      },
+      start_ns: 0,
+      end_ns: 5_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "view", key.namespace
+    assert_equal "shared/_header.html.erb", key.target
+    assert_equal "partial", key.operation
+  end
+
+  def test_view_layout_creates_metric
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "render_layout.action_view",
+      attributes: {
+        "identifier" => "/Users/john/myapp/app/views/layouts/application.html.erb"
+      },
+      start_ns: 0,
+      end_ns: 15_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "view", key.namespace
+    assert_equal "layouts/application.html.erb", key.target
+    assert_equal "layout", key.operation
+  end
+
+  def test_view_collection_creates_metric
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "render_collection.action_view",
+      attributes: {
+        "identifier" => "/Users/john/myapp/app/views/posts/_post.html.erb"
+      },
+      start_ns: 0,
+      end_ns: 20_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "view", key.namespace
+    assert_equal "posts/_post.html.erb", key.target
+    assert_equal "collection", key.operation
+  end
+
+  def test_view_missing_identifier_uses_unknown
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "render_template.action_view",
+      attributes: {},
+      start_ns: 0,
+      end_ns: 5_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "view", key.namespace
+    assert_equal "unknown", key.target
+  end
+
+  def test_view_identifier_without_app_views_uses_basename
+    span = MockSpan.new(
+      kind: :internal,
+      parent_span_id: "abc123",
+      name: "render_template.action_view",
+      attributes: {
+        "identifier" => "inline template"
+      },
+      start_ns: 0,
+      end_ns: 1_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "inline template", key.target
+  end
+
   # Mock span class for testing
   class MockSpan
     attr_reader :kind, :parent_span_id, :name, :attributes, :start_timestamp, :end_timestamp, :status
