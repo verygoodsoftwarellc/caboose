@@ -1,27 +1,4 @@
 <%
-  # Helper to get span type category
-  def span_category(span)
-    name = span[:name].to_s.downcase
-    case name
-    when /sql\.active_record/, /mysql/, /postgres/, /sqlite/
-      "sql"
-    when /cache/
-      "cache"
-    when /render/, /view/
-      "view"
-    when /http/, /net_http/, /faraday/
-      "http"
-    when /mail/
-      "mailer"
-    when /job/, /active_job/
-      "job"
-    when /action_controller/, /process_action/
-      "controller"
-    else
-      "other"
-    end
-  end
-
   # Get root span properties
   root_props = @root_span ? @root_span[:properties] : {}
   job_class = root_props["code.namespace"]
