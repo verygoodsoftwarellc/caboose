@@ -202,11 +202,6 @@ module Caboose
       time.utc.strftime("%Y-%m-%dT%H:%M:%SZ")
     end
 
-    def local_endpoint?
-      host = @endpoint.host
-      host == "localhost" || host == "127.0.0.1" || host == "::1"
-    end
-
     def default_project
       if defined?(Rails) && Rails.application
         Rails.application.class.module_parent_name.underscore rescue "rails_app"
