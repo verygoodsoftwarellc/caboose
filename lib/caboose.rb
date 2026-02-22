@@ -268,7 +268,7 @@ module Caboose
   def subscribe_to_notifications
     NOTIFICATION_TRANSFORMERS.each do |pattern, transformer|
       OpenTelemetry::Instrumentation::ActiveSupport.subscribe(tracer, pattern, transformer)
-    rescue => e
+    rescue
       # Ignore errors for patterns that don't exist
     end
 

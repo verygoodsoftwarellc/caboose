@@ -226,7 +226,7 @@ class IntegrationTest < Minitest::Test
   end
 
   def test_requests_show_with_child_spans
-    span_id = create_request_span(trace_id: "trace_with_children", name: "GET /users")
+    create_request_span(trace_id: "trace_with_children", name: "GET /users")
 
     db = SQLite3::Database.new(@db_path, results_as_hash: true)
     row = db.execute("SELECT span_id FROM caboose_spans WHERE trace_id = ?", ["trace_with_children"]).first

@@ -114,9 +114,6 @@ module Caboose
     def post(body, request_id)
       http = Net::HTTP.new(@endpoint.host, @endpoint.port)
       http.use_ssl = @endpoint.scheme == "https"
-      if http.use_ssl? && local_endpoint?
-        http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-      end
       http.open_timeout = @open_timeout
       http.read_timeout = @read_timeout
       http.write_timeout = @write_timeout if http.respond_to?(:write_timeout=)
