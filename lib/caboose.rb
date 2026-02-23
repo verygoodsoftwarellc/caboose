@@ -158,8 +158,10 @@ module Caboose
     end
 
     # Subscribe to common ActiveSupport notification patterns
-    # This captures SQL, cache, mailer, and custom notifications
-    if configuration.spans_enabled
+    # This captures SQL, cache, mailer, and custom notifications.
+    # Required for both spans (detailed traces) and metrics (aggregated counters)
+    # because DB, cache, and mailer data flows through ActiveSupport notifications.
+    if configuration.spans_enabled || configuration.metrics_enabled
       subscribe_to_notifications
     end
 
