@@ -29,3 +29,5 @@ if rails_version.include?("6.") || rails_version.include?("7.0") || rails_versio
 else
   gem "sqlite3", ">= 2.0"
 end
+
+gem "openssl"
