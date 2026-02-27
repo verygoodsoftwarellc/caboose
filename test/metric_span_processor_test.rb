@@ -610,6 +610,86 @@ class MetricSpanProcessorTest < Minitest::Test
     assert_equal "inline template", key.target
   end
 
+  def test_database_span_extracts_table_from_sql_when_db_sql_table_missing
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "db.system" => "mysql",
+        "db.name" => "primary",
+        "db.statement" => "SELECT `users`.* FROM `users` WHERE `users`.`id` = 1",
+        "db.operation" => "SELECT"
+      },
+      start_ns: 0,
+      end_ns: 5_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "db", key.namespace
+    assert_equal "users", key.target
+  end
+
+  def test_database_span_falls_back_to_db_name_when_no_sql
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "db.system" => "mysql",
+        "db.name" => "primary",
+        "db.operation" => "SELECT"
+      },
+      start_ns: 0,
+      end_ns: 5_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "primary", key.target
+  end
+
+  def test_database_span_extracts_table_from_insert_sql
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "db.system" => "mysql",
+        "db.name" => "primary",
+        "db.statement" => "INSERT INTO `orders` (`user_id`, `total`) VALUES (1, 99.99)",
+        "db.operation" => "INSERT"
+      },
+      start_ns: 0,
+      end_ns: 5_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "orders", key.target
+  end
+
+  def test_database_span_extracts_table_from_update_sql
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "db.system" => "mysql",
+        "db.name" => "cache",
+        "db.statement" => "UPDATE `sessions` SET `updated_at` = NOW() WHERE `id` = 5",
+        "db.operation" => "UPDATE"
+      },
+      start_ns: 0,
+      end_ns: 5_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "sessions", key.target
+  end
+
   # Mock span class for testing
   class MockSpan
     attr_reader :kind, :parent_span_id, :name, :attributes, :start_timestamp, :end_timestamp, :status

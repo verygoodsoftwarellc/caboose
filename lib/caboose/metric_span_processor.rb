@@ -277,8 +277,9 @@ module Caboose
           span.attributes["db.name"] ||
           "default"
       else
-        # For SQL databases, use table name or db name
+        # For SQL databases, prefer table name from attributes or parsed from SQL
         span.attributes["db.sql.table"] ||
+          extract_sql_table(span) ||
           span.attributes["db.name"] ||
           "unknown"
       end
@@ -303,6 +304,22 @@ module Caboose
 
       # Extract first word (SELECT, INSERT, UPDATE, DELETE, etc.)
       statement.to_s.strip.split(/\s+/).first&.upcase
+    end
+
+    def extract_sql_table(span)
+      statement = span.attributes["db.statement"]
+      return nil unless statement
+
+      sql = statement.to_s.strip
+
+      case sql
+      when /\bFROM\s+[`"]?(\w+)[`"]?/i
+        $1
+      when /\bINTO\s+[`"]?(\w+)[`"]?/i
+        $1
+      when /\bUPDATE\s+[`"]?(\w+)[`"]?/i
+        $1
+      end
     end
 
     def extract_host_from_url(span)
