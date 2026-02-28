@@ -133,7 +133,7 @@ module Caboose
     def record_background_metric(span)
       key = MetricKey.new(
         bucket: bucket_time(span),
-        namespace: "background",
+        namespace: "job",
         service: extract_job_system(span),
         target: span.attributes["code.namespace"] || span.attributes["messaging.destination"] || "unknown",
         operation: span.attributes["code.function"] || span.name

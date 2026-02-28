@@ -67,7 +67,7 @@ class MetricSpanProcessorTest < Minitest::Test
 
     assert_equal 1, @storage.size
     key = @storage.drain.keys.first
-    assert_equal "background", key.namespace
+    assert_equal "job", key.namespace
     assert_equal "sidekiq", key.service
     assert_equal "MyJob", key.target
     assert_equal "perform", key.operation

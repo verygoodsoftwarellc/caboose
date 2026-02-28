@@ -64,7 +64,7 @@ drained = {
 
   Caboose::MetricKey.new(
     bucket: bucket,
-    namespace: "background",
+    namespace: "job",
     service: "rails",
     target: "DataSyncJob",
     operation: "perform"
