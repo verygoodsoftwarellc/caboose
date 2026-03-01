@@ -15,3 +15,4 @@ log/*
 .playwright-mcp
 .env
 /db/caboose.sqlite3*
+.superset/
