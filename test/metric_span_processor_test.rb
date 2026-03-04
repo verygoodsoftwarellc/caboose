@@ -37,7 +37,11 @@ class MetricSpanProcessorTest < Minitest::Test
     span = MockSpan.new(
       kind: :server,
       parent_span_id: nil,
-      attributes: { "http.status_code" => 500 },
+      attributes: {
+        "http.status_code" => 500,
+        "code.namespace" => "UsersController",
+        "code.function" => "show"
+      },
       start_ns: 0,
       end_ns: 100_000_000
     )
@@ -47,6 +51,26 @@ class MetricSpanProcessorTest < Minitest::Test
     result = @storage.drain
     counter = result.values.first
     assert_equal 1, counter[:error_count]
+  end
+
+  def test_skips_web_requests_without_controller
+    # Requests that don't hit a Rails controller (assets, favicon, bot probes)
+    # should not be tracked as web metrics
+    span = MockSpan.new(
+      kind: :server,
+      parent_span_id: nil,
+      attributes: {
+        "http.status_code" => 404,
+        "http.target" => "/favicon.ico",
+        "http.method" => "GET"
+      },
+      start_ns: 0,
+      end_ns: 1_000_000
+    )
+
+    @processor.on_end(span)
+
+    assert @storage.empty?
   end
 
   def test_background_job_creates_metric
@@ -148,7 +172,11 @@ class MetricSpanProcessorTest < Minitest::Test
     span = MockSpan.new(
       kind: :server,
       parent_span_id: nil,
-      attributes: { "http.status_code" => 200 },
+      attributes: {
+        "http.status_code" => 200,
+        "code.namespace" => "UsersController",
+        "code.function" => "index"
+      },
       start_ns: 1_000_000_000, # 1 second mark
       end_ns: 1_150_000_000 # 1.15 second mark = 150ms duration
     )

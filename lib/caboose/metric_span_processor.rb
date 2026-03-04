@@ -115,12 +115,16 @@ module Caboose
     end
 
     def record_web_metric(span)
+      # Skip requests that never hit a Rails controller (assets, favicon, bot probes, etc.)
+      # These have no code.namespace set by ActionPack instrumentation.
+      return unless span.attributes["code.namespace"]
+
       key = MetricKey.new(
         bucket: bucket_time(span),
         namespace: "web",
         service: "rails",
-        target: span.attributes["code.namespace"] || extract_controller(span),
-        operation: span.attributes["code.function"] || extract_action(span)
+        target: span.attributes["code.namespace"],
+        operation: span.attributes["code.function"]
       )
 
       @storage.increment(
@@ -241,19 +245,6 @@ module Caboose
 
     def span_error?(span)
       span.status&.code == OpenTelemetry::Trace::Status::ERROR
-    end
-
-    def extract_controller(span)
-      # Try to get controller from various attributes
-      span.attributes["http.route"] ||
-        span.attributes["http.target"]&.split("?")&.first ||
-        "rack"
-    end
-
-    def extract_action(span)
-      span.attributes["http.method"] ||
-        span.attributes["http.request.method"] ||
-        "call"
     end
 
     def extract_job_system(span)
