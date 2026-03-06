@@ -184,7 +184,10 @@ module Caboose
     return unless configuration.metrics_enabled
 
     @metric_storage ||= MetricStorage.new
-    metric_processor = MetricSpanProcessor.new(storage: @metric_storage)
+    metric_processor = MetricSpanProcessor.new(
+      storage: @metric_storage,
+      http_metrics_config: configuration.http_metrics_config
+    )
     OpenTelemetry.tracer_provider.add_span_processor(metric_processor)
 
     log "Metrics enabled (endpoint=#{configuration.url} key=#{configuration.key ? 'present' : 'missing'})"

@@ -7,7 +7,8 @@ require "caboose/metric_span_processor"
 class MetricSpanProcessorTest < Minitest::Test
   def setup
     @storage = Caboose::MetricStorage.new
-    @processor = Caboose::MetricSpanProcessor.new(storage: @storage)
+    @http_config = Caboose::HttpMetricsConfig.new
+    @processor = Caboose::MetricSpanProcessor.new(storage: @storage, http_metrics_config: @http_config)
   end
 
   def test_web_request_creates_metric
@@ -145,6 +146,8 @@ class MetricSpanProcessorTest < Minitest::Test
   end
 
   def test_http_client_span_creates_metric
+    @http_config.host("api.stripe.com", :all)
+
     span = MockSpan.new(
       kind: :client,
       parent_span_id: "abc123",
@@ -239,6 +242,8 @@ class MetricSpanProcessorTest < Minitest::Test
   end
 
   def test_http_path_normalizes_numeric_ids
+    @http_config.host("api.example.com", :all)
+
     span = MockSpan.new(
       kind: :client,
       parent_span_id: "abc123",
@@ -259,6 +264,8 @@ class MetricSpanProcessorTest < Minitest::Test
   end
 
   def test_http_path_normalizes_uuids
+    @http_config.host("api.example.com", :all)
+
     span = MockSpan.new(
       kind: :client,
       parent_span_id: "abc123",
@@ -279,6 +286,8 @@ class MetricSpanProcessorTest < Minitest::Test
   end
 
   def test_http_path_normalizes_mongo_ids
+    @http_config.host("api.example.com", :all)
+
     span = MockSpan.new(
       kind: :client,
       parent_span_id: "abc123",
@@ -299,6 +308,8 @@ class MetricSpanProcessorTest < Minitest::Test
   end
 
   def test_http_path_normalizes_long_tokens
+    @http_config.host("api.example.com", :all)
+
     span = MockSpan.new(
       kind: :client,
       parent_span_id: "abc123",
@@ -319,6 +330,8 @@ class MetricSpanProcessorTest < Minitest::Test
   end
 
   def test_http_path_preserves_static_segments
+    @http_config.host("api.example.com", :all)
+
     span = MockSpan.new(
       kind: :client,
       parent_span_id: "abc123",
@@ -727,6 +740,240 @@ class MetricSpanProcessorTest < Minitest::Test
 
     key = @storage.drain.keys.first
     assert_equal "sessions", key.target
+  end
+
+  # HTTP metrics config tests
+
+  def test_http_unconfigured_host_uses_star
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "GET",
+        "http.host" => "unknown-api.example.com",
+        "http.target" => "/v1/users/123",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "GET *", key.target
+  end
+
+  def test_http_allow_matches_path
+    @http_config.host "api.stripe.com" do |h|
+      h.allow %r{/v1/charges}
+    end
+
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "POST",
+        "http.host" => "api.stripe.com",
+        "http.target" => "/v1/charges/12345",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "POST /v1/charges/:id", key.target
+  end
+
+  def test_http_allow_unmatched_path_uses_star
+    @http_config.host "api.stripe.com" do |h|
+      h.allow %r{/v1/charges}
+    end
+
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "GET",
+        "http.host" => "api.stripe.com",
+        "http.target" => "/v1/customers/cus_abc123",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "GET *", key.target
+  end
+
+  def test_http_map_uses_custom_replacement
+    @http_config.host "api.example.com" do |h|
+      h.map %r{/v1/connect/[\w-]+/transfers}, "/v1/connect/:account/transfers"
+    end
+
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "POST",
+        "http.host" => "api.example.com",
+        "http.target" => "/v1/connect/acct_abc123/transfers",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "POST /v1/connect/:account/transfers", key.target
+  end
+
+  def test_http_allow_first_match_wins
+    @http_config.host "api.example.com" do |h|
+      h.map %r{/v1/users}, "/v1/users-custom"
+      h.allow %r{/v1/users}
+    end
+
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "GET",
+        "http.host" => "api.example.com",
+        "http.target" => "/v1/users/123",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "GET /v1/users-custom", key.target
+  end
+
+  def test_http_default_config_allows_caboose_dev
+    config = Caboose::HttpMetricsConfig::DEFAULT
+    processor = Caboose::MetricSpanProcessor.new(storage: @storage, http_metrics_config: config)
+
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "POST",
+        "http.host" => "caboose.dev",
+        "http.target" => "/api/metrics",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "POST /api/metrics", key.target
+  end
+
+  def test_http_default_config_allows_flippercloud_adapter
+    config = Caboose::HttpMetricsConfig::DEFAULT
+    processor = Caboose::MetricSpanProcessor.new(storage: @storage, http_metrics_config: config)
+
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "GET",
+        "http.host" => "www.flippercloud.io",
+        "http.target" => "/adapter/features",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "GET /adapter/features", key.target
+  end
+
+  def test_http_default_config_normalizes_flippercloud_feature_name
+    config = Caboose::HttpMetricsConfig::DEFAULT
+    processor = Caboose::MetricSpanProcessor.new(storage: @storage, http_metrics_config: config)
+
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "GET",
+        "http.host" => "www.flippercloud.io",
+        "http.target" => "/adapter/features/my_feature_flag",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "GET /adapter/features/:name", key.target
+  end
+
+  def test_http_default_config_normalizes_flippercloud_gate
+    config = Caboose::HttpMetricsConfig::DEFAULT
+    processor = Caboose::MetricSpanProcessor.new(storage: @storage, http_metrics_config: config)
+
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "POST",
+        "http.host" => "www.flippercloud.io",
+        "http.target" => "/adapter/features/my_feature/boolean",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "POST /adapter/features/:name/:gate", key.target
+  end
+
+  def test_http_default_config_stars_unknown_host
+    config = Caboose::HttpMetricsConfig::DEFAULT
+    processor = Caboose::MetricSpanProcessor.new(storage: @storage, http_metrics_config: config)
+
+    span = MockSpan.new(
+      kind: :client,
+      parent_span_id: "abc123",
+      attributes: {
+        "http.method" => "GET",
+        "http.host" => "random-api.example.com",
+        "http.target" => "/some/path",
+        "http.status_code" => 200
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "GET *", key.target
   end
 
   # Mock span class for testing

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "metric_key"
+require_relative "http_metrics_config"
 
 module Caboose
   # OpenTelemetry SpanProcessor that extracts metrics from spans.
@@ -23,8 +24,9 @@ module Caboose
       "solid_cache" => "solid_cache"
     }.freeze
 
-    def initialize(storage:)
+    def initialize(storage:, http_metrics_config: nil)
       @storage = storage
+      @http_metrics_config = http_metrics_config || HttpMetricsConfig::DEFAULT
       @pid = $$
     end
 
@@ -186,7 +188,7 @@ module Caboose
                span.attributes["http.request.method"] ||
                "UNKNOWN"
 
-      path = extract_http_path(span)
+      path = resolve_http_path(span, host.to_s.downcase)
 
       key = MetricKey.new(
         bucket: bucket_time(span),
@@ -343,13 +345,27 @@ module Caboose
       nil
     end
 
-    def extract_http_path(span)
+    # Resolve the HTTP path using the http_metrics_config.
+    # Returns the resolved path string (could be "*", a custom string, or normalized path).
+    def resolve_http_path(span, host)
+      raw_path = raw_http_path(span)
+      result = @http_metrics_config.resolve(host, raw_path)
+
+      if result == "*"
+        "*"
+      elsif result.is_a?(String)
+        result
+      else
+        # nil means use normalize_path
+        normalize_path(raw_path)
+      end
+    end
+
+    def raw_http_path(span)
       path = span.attributes["http.target"] ||
              span.attributes["url.path"] ||
              extract_path_from_url(span)
-
-      # Normalize path - remove query string, replace IDs with placeholders
-      normalize_path(path&.to_s&.split("?")&.first || "/")
+      path&.to_s&.split("?")&.first || "/"
     end
 
     # Normalize URL paths to prevent cardinality explosion.

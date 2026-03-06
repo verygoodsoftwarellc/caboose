@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "http_metrics_config"
+
 module Caboose
   class Configuration
     attr_accessor :enabled
@@ -26,6 +28,10 @@ module Caboose
 
     attr_accessor :subscribe_patterns
 
+    # HTTP metrics path tracking configuration.
+    # Controls which outgoing HTTP paths are tracked with detail vs collapsed to "*".
+    attr_reader :http_metrics_config
+
     # Enable debug logging to see what Caboose is doing.
     # Set CABOOSE_DEBUG=1 or configure debug: true in your initializer.
     attr_accessor :debug
@@ -38,6 +44,7 @@ module Caboose
       @ignore_request = ->(request) { false }
       @subscribe_patterns = DEFAULT_SUBSCRIBE_PATTERNS.dup
       @debug = ENV["CABOOSE_DEBUG"] == "1"
+      @http_metrics_config = HttpMetricsConfig::DEFAULT
 
       # Environment-based defaults:
       # - Development: spans ON (detailed debugging), metrics ON
@@ -62,6 +69,24 @@ module Caboose
 
     def database_path
       @database_path || default_database_path
+    end
+
+    # Configure HTTP metrics path tracking.
+    #
+    #   config.http_metrics do |http|
+    #     http.host "api.stripe.com" do |h|
+    #       h.allow %r{/v1/customers}
+    #       h.allow %r{/v1/charges}
+    #       h.map %r{/v1/connect/[\w-]+/transfers}, "/v1/connect/:account/transfers"
+    #     end
+    #     http.host "api.github.com", :all
+    #   end
+    def http_metrics(&block)
+      # Clone defaults on first customization so user additions merge with built-in defaults
+      if @http_metrics_config.equal?(HttpMetricsConfig::DEFAULT)
+        @http_metrics_config = @http_metrics_config.dup
+      end
+      yield @http_metrics_config
     end
 
     private
