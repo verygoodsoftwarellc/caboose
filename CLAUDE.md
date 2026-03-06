@@ -32,7 +32,7 @@ Metrics are lightweight aggregated counters computed from spans in-memory. The `
 - **web** - HTTP requests (namespace=web, service=rails, target=controller, operation=method)
 - **background** - Jobs (namespace=background, service=activejob/sidekiq, target=job class, operation=action)
 - **db** - Database queries (namespace=db, service=sqlite/postgresql/etc, target=table, operation=SELECT/INSERT/etc)
-- **http** - Outgoing HTTP calls (namespace=http, service=host, target=path, operation=GET/POST/etc)
+- **http** - Outgoing HTTP calls (namespace=http, service=host, target=VERB+path, operation=status class). Paths default to `*` to prevent cardinality explosion; see HTTP Metrics Path Config below.
 
 The `MetricFlusher` drains the storage every 60s and the `MetricSubmitter` posts gzipped JSON to `POST {url}/api/metrics` with `Authorization: Bearer {CABOOSE_KEY}`. Only runs if both `url` and `key` are configured.
 
@@ -70,6 +70,25 @@ Adds `.env` and `/db/caboose.sqlite3*` to `.gitignore` if not already present.
 - `CABOOSE_DEBUG` - Set to `1` to enable debug logging
 
 The engine loads `CABOOSE_KEY` from Rails credentials automatically if the env var isn't set (see `engine.rb` initializer `caboose.defaults`).
+
+### HTTP Metrics Path Config
+
+Outgoing HTTP paths default to `VERB *` per host to prevent high-cardinality metric keys (e.g., slug-based URLs). Users opt-in to path detail per host via `HttpMetricsConfig` DSL with `allow` (use `normalize_path`) and `map` (custom replacement). First match wins. Built-in defaults cover `caboose.dev` and `www.flippercloud.io`. User config merges with defaults (never replaces).
+
+```ruby
+Caboose.configure do |config|
+  config.http_metrics do |http|
+    http.host "api.stripe.com" do |h|
+      h.allow %r{/v1/customers}       # tracked, auto-normalized
+      h.allow %r{/v1/charges}
+      h.map %r{/v1/connect/[\w-]+/transfers}, "/v1/connect/:account/transfers"  # custom normalization
+    end
+    http.host "api.github.com", :all   # track all paths, auto-normalized
+  end
+end
+```
+
+See `lib/caboose/http_metrics_config.rb` for implementation.
 
 ## Engine Initialization Order
 
@@ -120,6 +139,7 @@ Tests use Minitest. The test helper loads core library classes directly without 
 - `lib/caboose/cli.rb` - CLI command router
 - `lib/caboose/cli/setup_command.rb` - setup/auth flow
 - `lib/caboose/sqlite_exporter.rb` - OTel span exporter that writes to SQLite
+- `lib/caboose/http_metrics_config.rb` - per-host HTTP path allow/map DSL for metrics cardinality control
 - `lib/caboose/metric_span_processor.rb` - OTel span processor that extracts metrics
 - `lib/caboose/metric_storage.rb` - thread-safe in-memory metric aggregation
 - `lib/caboose/metric_flusher.rb` - background timer that drains and submits metrics
