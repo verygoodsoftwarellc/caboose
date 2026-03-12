@@ -120,13 +120,17 @@ module Caboose
     end
 
     def record_web_metric(span)
-      # Skip requests that never hit a Rails controller (assets, favicon, bot probes, etc.)
-      # These have no code.namespace set by ActionPack instrumentation.
-      return unless span.attributes["code.namespace"]
+      target = span.attributes[Caboose::TRANSACTION_NAME_ATTRIBUTE]
 
-      controller = span.attributes["code.namespace"]
-      action = span.attributes["code.function"]
-      target = action ? "#{controller}##{action}" : controller
+      unless target
+        # Skip requests that never hit a Rails controller (assets, favicon, bot probes, etc.)
+        # These have no code.namespace set by ActionPack instrumentation.
+        return unless span.attributes["code.namespace"]
+
+        controller = span.attributes["code.namespace"]
+        action = span.attributes["code.function"]
+        target = action ? "#{controller}##{action}" : controller
+      end
 
       key = MetricKey.new(
         bucket: bucket_time(span),
@@ -144,12 +148,14 @@ module Caboose
     end
 
     def record_background_metric(span)
+      transaction_name = span.attributes[Caboose::TRANSACTION_NAME_ATTRIBUTE]
+
       key = MetricKey.new(
         bucket: bucket_time(span),
         namespace: "job",
         service: extract_job_system(span),
-        target: span.attributes["code.namespace"] || span.attributes["messaging.destination"] || "unknown",
-        operation: span.attributes["code.function"] || span.name
+        target: transaction_name || span.attributes["code.namespace"] || span.attributes["messaging.destination"] || "unknown",
+        operation: transaction_name ? "perform" : (span.attributes["code.function"] || span.name)
       )
 
       @storage.increment(

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "test_helper"
+require "caboose"
 require "caboose/metric_storage"
 require "caboose/metric_span_processor"
 
@@ -54,6 +55,48 @@ class MetricSpanProcessorTest < Minitest::Test
     assert_equal 1, counter[:error_count]
   end
 
+  def test_web_request_with_transaction_name_uses_it
+    span = MockSpan.new(
+      kind: :server,
+      parent_span_id: nil,
+      attributes: {
+        "http.status_code" => 200,
+        Caboose::TRANSACTION_NAME_ATTRIBUTE => "RestApi::Routes::Audits#get"
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    assert_equal 1, @storage.size
+    key = @storage.drain.keys.first
+    assert_equal "web", key.namespace
+    assert_equal "rails", key.service
+    assert_equal "RestApi::Routes::Audits#get", key.target
+    assert_equal "2xx", key.operation
+  end
+
+  def test_web_request_transaction_name_overrides_controller
+    span = MockSpan.new(
+      kind: :server,
+      parent_span_id: nil,
+      attributes: {
+        "http.status_code" => 200,
+        "code.namespace" => "UsersController",
+        "code.function" => "show",
+        Caboose::TRANSACTION_NAME_ATTRIBUTE => "CustomName#action"
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    key = @storage.drain.keys.first
+    assert_equal "CustomName#action", key.target
+  end
+
   def test_skips_web_requests_without_controller
     # Requests that don't hit a Rails controller (assets, favicon, bot probes)
     # should not be tracked as web metrics
@@ -72,6 +115,28 @@ class MetricSpanProcessorTest < Minitest::Test
     @processor.on_end(span)
 
     assert @storage.empty?
+  end
+
+  def test_background_job_with_transaction_name_uses_it
+    span = MockSpan.new(
+      kind: :consumer,
+      parent_span_id: nil,
+      name: "MyJob process",
+      attributes: {
+        "messaging.system" => "sidekiq",
+        Caboose::TRANSACTION_NAME_ATTRIBUTE => "CustomWorker"
+      },
+      start_ns: 0,
+      end_ns: 50_000_000
+    )
+
+    @processor.on_end(span)
+
+    assert_equal 1, @storage.size
+    key = @storage.drain.keys.first
+    assert_equal "job", key.namespace
+    assert_equal "CustomWorker", key.target
+    assert_equal "perform", key.operation
   end
 
   def test_background_job_creates_metric

@@ -18,6 +18,7 @@ module Caboose
   class Error < StandardError; end
 
   MISSING_PARENT_ID = "0000000000000000"
+  TRANSACTION_NAME_ATTRIBUTE = "caboose.transaction_name"
 
   module_function
 
@@ -31,6 +32,21 @@ module Caboose
 
   def enabled?
     configuration.enabled
+  end
+
+  # Set the transaction name for the current span. This overrides the
+  # default name derived from Rails controller/action or job class.
+  #
+  # Useful for Rack middleware, mounted apps, or any request that
+  # doesn't go through the Rails router.
+  #
+  #   Caboose.transaction_name("RestApi::Routes::Audits#get")
+  #
+  def transaction_name(name)
+    span = OpenTelemetry::Trace.current_span
+    return unless span.respond_to?(:set_attribute)
+
+    span.set_attribute(TRANSACTION_NAME_ATTRIBUTE, name)
   end
 
   def logger
