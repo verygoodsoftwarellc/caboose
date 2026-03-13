@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative "test_helper"
-require "caboose"
 require "caboose/metric_storage"
 require "caboose/metric_span_processor"
 

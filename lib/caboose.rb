@@ -18,7 +18,7 @@ module Caboose
   class Error < StandardError; end
 
   MISSING_PARENT_ID = "0000000000000000"
-  TRANSACTION_NAME_ATTRIBUTE = "caboose.transaction_name"
+  TRANSACTION_NAME_ATTRIBUTE = "caboose.transaction_name" unless const_defined?(:TRANSACTION_NAME_ATTRIBUTE)
 
   module_function
 

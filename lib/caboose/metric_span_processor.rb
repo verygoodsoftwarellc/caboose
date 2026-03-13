@@ -4,6 +4,8 @@ require_relative "metric_key"
 require_relative "http_metrics_config"
 
 module Caboose
+  TRANSACTION_NAME_ATTRIBUTE = "caboose.transaction_name" unless const_defined?(:TRANSACTION_NAME_ATTRIBUTE)
+
   # OpenTelemetry SpanProcessor that extracts metrics from spans.
   # Aggregates counts, durations, and error rates by namespace/service/target/operation.
   class MetricSpanProcessor
