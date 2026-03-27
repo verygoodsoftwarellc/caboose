@@ -67,7 +67,9 @@ module Flare
       require_relative "flare/sqlite_exporter"
       SQLiteExporter.new(configuration.database_path)
     rescue LoadError
-      raise LoadError, "Flare spans require the sqlite3 gem. Add `gem 'sqlite3'` to your Gemfile."
+      warn "[Flare] sqlite3 gem not found. Spans are disabled. Add `gem 'sqlite3'` to your Gemfile to enable the development dashboard."
+      configuration.spans_enabled = false
+      nil
     end
   end
 
@@ -158,7 +160,7 @@ module Flare
       c.service_name = service_name
 
       # Spans: detailed trace data stored in SQLite
-      if configuration.spans_enabled
+      if configuration.spans_enabled && exporter
         c.add_span_processor(span_processor)
         log "Spans enabled (database=#{configuration.database_path})"
       end
@@ -188,7 +190,7 @@ module Flare
 
     at_exit do
       log "Shutting down..."
-      if configuration.spans_enabled
+      if configuration.spans_enabled && @span_processor
         span_processor.force_flush
         span_processor.shutdown
         log "Span processor flushed and stopped"
@@ -386,7 +388,9 @@ module Flare
       require_relative "flare/storage/sqlite"
       Storage::SQLite.new(configuration.database_path)
     rescue LoadError
-      raise LoadError, "Flare spans require the sqlite3 gem. Add `gem 'sqlite3'` to your Gemfile."
+      warn "[Flare] sqlite3 gem not found. Dashboard is disabled. Add `gem 'sqlite3'` to your Gemfile to enable it."
+      configuration.spans_enabled = false
+      nil
     end
   end
 
