@@ -1,8 +1,8 @@
-# Flare
+# Flare — App Monitoring
 
-Track what just happened in your Rails app.
+Light up what's slowing you down. [flare.am](https://flare.am)
 
-A Laravel Telescope-style debugging dashboard for Rails. Development-focused, local-first, captures everything happening in your app and displays it with a waterfall visualization.
+App monitoring for Rails. Captures requests, queries, jobs, cache, views, HTTP calls, mail, and exceptions in development with a waterfall visualization dashboard. Sends lightweight aggregated metrics in production.
 
 ## Features
 

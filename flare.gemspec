@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.authors = ["John Nunemaker"]
   spec.email = ["nunemaker@gmail.com"]
 
-  spec.summary = "Track what just happened in your Rails app"
-  spec.description = "Track what just happened in your Rails app"
+  spec.summary = "Light up what's slowing you down"
+  spec.description = "Light up what's slowing you down"
   spec.homepage = "https://github.com/jnunemaker/flare"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
