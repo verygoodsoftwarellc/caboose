@@ -9,14 +9,14 @@ Gem::Specification.new do |spec|
   spec.email = ["nunemaker@gmail.com"]
 
   spec.summary = "Light up what's slowing you down"
-  spec.description = "Light up what's slowing you down"
+  spec.description = "App monitoring for Rails. Captures requests, queries, jobs, cache, views, HTTP calls, mail, and exceptions with a waterfall visualization dashboard."
   spec.homepage = "https://github.com/jnunemaker/flare"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.0.0"
 
   spec.metadata["allowed_push_host"] = "https://rubygems.org"
 
-  spec.metadata["homepage_uri"] = spec.homepage
+  spec.metadata["homepage_uri"] = "https://flare.am"
   spec.metadata["source_code_uri"] = spec.homepage
   spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/master/CHANGELOG.md"
 

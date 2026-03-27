@@ -16,3 +16,4 @@ log/*
 .env
 flare.sqlite3*
 .superset/
+*.gem
