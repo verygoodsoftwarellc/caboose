@@ -6,9 +6,17 @@ module Flare
 
     layout "flare/application"
 
+    before_action :require_storage
+
     helper_method :show_redis_tab?
 
     private
+
+    def require_storage
+      return if Flare.storage
+
+      render plain: "Flare dashboard requires the sqlite3 gem. Add `gem 'sqlite3'` to your Gemfile.", status: :service_unavailable
+    end
 
     # Only show the Redis tab if:
     # 1. The Redis client library is loaded
