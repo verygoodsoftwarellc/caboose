@@ -156,7 +156,7 @@ module Flare
         bucket: bucket_time(span),
         namespace: "job",
         service: extract_job_system(span),
-        target: transaction_name || span.attributes["code.namespace"] || span.attributes["messaging.destination"] || "unknown",
+        target: transaction_name || span.attributes["code.namespace"] || span.attributes["messaging.sidekiq.job_class"] || span.attributes["messaging.destination"] || "unknown",
         operation: transaction_name ? "perform" : (span.attributes["code.function"] || span.name)
       )
 

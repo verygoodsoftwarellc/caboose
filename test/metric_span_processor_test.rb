@@ -162,6 +162,30 @@ class MetricSpanProcessorTest < Minitest::Test
     assert_equal "perform", key.operation
   end
 
+  def test_background_job_sidekiq_uses_job_class_attribute
+    span = MockSpan.new(
+      kind: :consumer,
+      parent_span_id: nil,
+      name: "ImportWorker process",
+      attributes: {
+        "messaging.system" => "sidekiq",
+        "messaging.sidekiq.job_class" => "ImportWorker",
+        "messaging.destination" => "default"
+      },
+      start_ns: 0,
+      end_ns: 100_000_000
+    )
+
+    @processor.on_end(span)
+
+    assert_equal 1, @storage.size
+    key = @storage.drain.keys.first
+    assert_equal "job", key.namespace
+    assert_equal "sidekiq", key.service
+    assert_equal "ImportWorker", key.target
+    assert_equal "ImportWorker process", key.operation
+  end
+
   def test_database_span_creates_metric
     span = MockSpan.new(
       kind: :client,
